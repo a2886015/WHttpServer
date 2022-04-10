@@ -209,9 +209,16 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             return;
         }
-        shared_ptr<HttpReqMsg> queueMsg = parseHttpMsg(conn, httpCbData);
-        _workingMsgMap[fd] = queueMsg;
-        _threadPool->concurrentRun(&WHttpServer::handleHttpMsg, this, std::ref(_workingMsgMap[fd]));
+        shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData);
+        httpCbFun httpCbFun;
+        if (!findHttpCbFun(httpMsg->uri, httpCbFun))
+        {
+            mg_http_reply(conn, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+            closeHttpConnection(httpMsg, true);
+            return;
+        }
+        _workingMsgMap[fd] = httpMsg;
+        _threadPool->concurrentRun(httpCbFun, std::ref(_workingMsgMap[fd]));
     }
     else if (msgType == MG_EV_HTTP_CHUNK)
     {
@@ -460,17 +467,6 @@ void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_messa
     // std::cout << "chunk queue size is:" << GetChunkQueueSize(httpMsg) << std::endl;
     httpMsg->recvChunkSize += httpCbData->chunk.len;
     httpMsg->finishRecvChunk = (httpMsg->recvChunkSize >= httpMsg->totalBodySize);
-}
-
-void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg)
-{
-    httpCbFun httpCbFun;
-    if (!findHttpCbFun(httpMsg->uri, httpCbFun))
-    {
-        httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request"), true);
-        return;
-    }
-    httpCbFun(httpMsg);
 }
 
 void WHttpServer::releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg)

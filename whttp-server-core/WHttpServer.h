@@ -60,7 +60,6 @@ private:
     bool isValidHttpChunk(mg_http_message *httpCbData);
     shared_ptr<HttpReqMsg> parseHttpMsg(struct mg_connection *conn, struct mg_http_message *httpCbData, bool chunkFlag = false);
     void enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData);
-    void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg);
     void releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
