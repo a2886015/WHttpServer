@@ -1,0 +1,58 @@
+#pragma once
+
+#include <string>
+#include <map>
+#include <memory>
+#include "mongoose.h"
+#include "LockQueue.hpp"
+#include <time.h>
+#include <functional>
+#include <sstream>
+
+using namespace std;
+
+#define Logi(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%u][I] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define Logw(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%u][W] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define Loge(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%u][E] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+
+using HttpChunkQueue = LockQueue<string *>;
+using HttpSendQueue = LockQueue<string *>;
+
+struct HttpReqMsg
+{
+   mg_connection *httpConnection = nullptr;
+   string method; // GET POST PUT DELETE
+   string uri;
+   map<string, string> querys; // the params in uri
+   string proto; // http version
+   // the params in header, all key letters are converted to lowercase, eg "Content-Length" change to "content-length"
+   map<string, string> headers;
+   string body;
+   int64_t totalBodySize;
+   shared_ptr<HttpChunkQueue> chunkQueue;
+   shared_ptr<HttpSendQueue> sendQueue;
+   int64_t recvChunkSize = 0;
+   bool finishRecvChunk = false;
+};
+
+using httpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>;
+
+class IHttpServer
+{
+public:
+    IHttpServer(){}
+    virtual ~IHttpServer(){}
+    virtual bool init(int maxEventThreadNum) = 0;
+    virtual bool startHttp(int port) = 0;
+    virtual bool startHttps(int port, string certPath, string keyPath) = 0;
+    virtual bool stop() = 0;
+    virtual bool run() = 0;
+    virtual bool isRunning() = 0;
+    virtual void addHttpApi(const string &uri, httpCbFun fun) = 0;
+    virtual void addChunkHttpApi(const string &uri, httpCbFun fun) = 0;
+    virtual void closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread = false) = 0;
+    virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body, bool closeFdFlag = false) = 0;
+    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len) = 0;
+    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg) = 0;
+    virtual string formJsonBody(int code, string message) = 0;
+};
