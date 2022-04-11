@@ -109,14 +109,19 @@ bool WHttpServer::isRunning()
     return (_httpPort != -1 || _httpsPort != -1);
 }
 
-void WHttpServer::addHttpApi(const string &uri, httpCbFun fun)
+void WHttpServer::addHttpApi(const string &uri, HttpCbFun fun)
 {
     _httpApiMap[uri] = fun;
 }
 
-void WHttpServer::addChunkHttpApi(const string &uri, httpCbFun fun)
+void WHttpServer::addChunkHttpApi(const string &uri, HttpCbFun fun)
 {
     _chunkHttpApiMap[uri] = fun;
+}
+
+void WHttpServer::setHttpFilter(HttpFilterFun filter)
+{
+    _httpFilterFun = filter;
 }
 
 void WHttpServer::closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread)
@@ -135,7 +140,22 @@ void WHttpServer::closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainT
     }
 }
 
-void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body, bool closeFdFlag)
+void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool mainThread)
+{
+    if (conn->label[CLIENT_CLOSE_BIT] == 1)
+    {
+        conn->label[RECV_CLIENT_CLOSE_BIT] = 1;
+        return;
+    }
+
+    conn->label[NORMAL_CLOSE_BIT] = 1;
+    if (mainThread)
+    {
+        conn->is_draining = 1;
+    }
+}
+
+void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)
 {
     stringstream sstream;
     sstream << "HTTP/1.1 " << httpCode << " " << mg_http_status_code_str(httpCode) << "\r\n";
@@ -150,10 +170,6 @@ void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, st
     string data = sstream.str();
     // xy_sync_mg_send(conn, data.c_str(), data.size());
     addSendMsgToQueue(httpMsg, data.c_str(), data.size());
-    if (closeFdFlag)
-    {
-        closeHttpConnection(httpMsg);
-    }
 }
 
 void WHttpServer::addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char *data, int len)
@@ -209,21 +225,21 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             return;
         }
-        shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData);
-        httpCbFun httpCbFun;
-        if (!findHttpCbFun(httpMsg->uri, httpCbFun))
+        HttpCbFun httpCbFun;
+        if (!findHttpCbFun(httpCbData, httpCbFun))
         {
             mg_http_reply(conn, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
-            closeHttpConnection(httpMsg, true);
+            closeHttpConnection(conn, true);
             return;
         }
+        shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData);
         _workingMsgMap[fd] = httpMsg;
-        _threadPool->concurrentRun(httpCbFun, std::ref(_workingMsgMap[fd]));
+        _threadPool->concurrentRun(&WHttpServer::handleHttpMsg, this, std::ref(_workingMsgMap[fd]), httpCbFun);
     }
     else if (msgType == MG_EV_HTTP_CHUNK)
     {
         struct mg_http_message *httpCbData = (struct mg_http_message *) msgData;
-        httpCbFun chunkHttpCbFun;
+        HttpCbFun chunkHttpCbFun;
         if (!findChunkHttpCbFun(httpCbData, chunkHttpCbFun))
         {
             return;
@@ -232,7 +248,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData, true);
             _workingMsgMap[fd] = httpMsg;
-            _threadPool->concurrentRun(chunkHttpCbFun, std::ref(_workingMsgMap[fd]));
+            _threadPool->concurrentRun(&WHttpServer::handleChunkHttpMsg, this, std::ref(_workingMsgMap[fd]), chunkHttpCbFun);
         }
         else
         {
@@ -263,6 +279,28 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         releaseHttpReqMsg(_workingMsgMap[fd]);
         _workingMsgMap.erase(fd);
     }
+}
+
+void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpCbFun httpCbFun)
+{
+    if (_httpFilterFun && !_httpFilterFun(httpMsg))
+    {
+        closeHttpConnection(httpMsg);
+        return;
+    }
+    httpCbFun(httpMsg);
+    closeHttpConnection(httpMsg);
+}
+
+void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpCbFun chunkHttpCbFun)
+{
+    if (_httpFilterFun && !_httpFilterFun(httpMsg))
+    {
+        closeHttpConnection(httpMsg);
+        return;
+    }
+    chunkHttpCbFun(httpMsg);
+    closeHttpConnection(httpMsg);
 }
 
 void WHttpServer::sendHttpMsgPoll()
@@ -302,17 +340,25 @@ shared_ptr<string> WHttpServer::deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMs
     return shared_ptr<string>(sendMsg);
 }
 
-bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, httpCbFun &cbFun)
+bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbFun)
 {
     bool res = false;
     for (auto it = _chunkHttpApiMap.begin(); it != _chunkHttpApiMap.end(); it++)
     {
-        int cmpSize = it->first.size() > httpCbData->uri.len ? httpCbData->uri.len : it->first.size();
+        if (httpCbData->uri.len < it->first.size())
+        {
+            continue;
+        }
+        size_t cmpSize = it->first.size();
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
-            cbFun = it->second;
-            res = true;
-            break;
+            if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
+                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+            {
+                cbFun = it->second;
+                res = true;
+                break;
+            }
         }
     }
     return res;
@@ -323,27 +369,43 @@ bool WHttpServer::isValidHttpChunk(mg_http_message *httpCbData)
     bool res = false;
     for (auto it = _chunkHttpApiMap.begin(); it != _chunkHttpApiMap.end(); it++)
     {
-        int cmpSize = it->first.size() > httpCbData->uri.len ? httpCbData->uri.len : it->first.size();
+        if (httpCbData->uri.len < it->first.size())
+        {
+            continue;
+        }
+        size_t cmpSize = it->first.size();
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
-            res = true;
-            break;
+            if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
+                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+            {
+                res = true;
+                break;
+            }
         }
     }
     return res;
 }
 
-bool WHttpServer::findHttpCbFun(string &uri, httpCbFun &cbFun)
+bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbFun)
 {
     bool res = false;
     for (auto it = _httpApiMap.begin(); it != _httpApiMap.end(); it++)
     {
-        int cmpSize = it->first.size() > uri.size() ? uri.size() : it->first.size();
-        if (strncmp(it->first.c_str(), uri.c_str(), cmpSize) == 0)
+        if (httpCbData->uri.len < it->first.size())
         {
-            cbFun = it->second;
-            res = true;
-            break;
+            continue;
+        }
+        size_t cmpSize = it->first.size();
+        if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
+        {
+            if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
+                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+            {
+                cbFun = it->second;
+                res = true;
+                break;
+            }
         }
     }
     return res;

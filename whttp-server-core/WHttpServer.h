@@ -27,10 +27,11 @@ public:
     virtual bool stop();
     virtual bool run();
     virtual bool isRunning();
-    virtual void addHttpApi(const string &uri, httpCbFun fun);
-    virtual void addChunkHttpApi(const string &uri, httpCbFun fun);
+    virtual void addHttpApi(const string &uri, HttpCbFun fun);
+    virtual void addChunkHttpApi(const string &uri, HttpCbFun fun);
+    virtual void setHttpFilter(HttpFilterFun filter);
     virtual void closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread = false);
-    virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body, bool closeFdFlag = false);
+    virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body);
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len);
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg);
     virtual string formJsonBody(int code, string message);
@@ -49,18 +50,22 @@ private:
     HttpCbMsg _httpsCbMsg;
     std::map<int64_t, shared_ptr<HttpReqMsg>> _workingMsgMap;
     WThreadPool *_threadPool = nullptr;
-    std::map<string, httpCbFun> _httpApiMap;
-    std::map<string, httpCbFun> _chunkHttpApiMap;
+    std::map<string, HttpCbFun> _httpApiMap;
+    std::map<string, HttpCbFun> _chunkHttpApiMap;
+    HttpFilterFun _httpFilterFun = nullptr;
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
+    void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpCbFun httpCbFun);
+    void handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpCbFun chunkHttpCbFun);
     void sendHttpMsgPoll();
     shared_ptr<string> deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMsg);
-    bool findHttpCbFun(string &uri, httpCbFun &cbFun);
-    bool findChunkHttpCbFun(mg_http_message *httpCbData, httpCbFun &cbFun);
+    bool findHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbFun);
+    bool findChunkHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbFun);
     bool isValidHttpChunk(mg_http_message *httpCbData);
     shared_ptr<HttpReqMsg> parseHttpMsg(struct mg_connection *conn, struct mg_http_message *httpCbData, bool chunkFlag = false);
     void enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData);
     void releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg);
+    void closeHttpConnection(struct mg_connection *conn, bool mainThread = false);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
 };

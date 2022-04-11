@@ -35,7 +35,8 @@ struct HttpReqMsg
    bool finishRecvChunk = false;
 };
 
-using httpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>;
+using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>;
+using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>;
 
 class IHttpServer
 {
@@ -48,10 +49,11 @@ public:
     virtual bool stop() = 0;
     virtual bool run() = 0;
     virtual bool isRunning() = 0;
-    virtual void addHttpApi(const string &uri, httpCbFun fun) = 0;
-    virtual void addChunkHttpApi(const string &uri, httpCbFun fun) = 0;
+    virtual void addHttpApi(const string &uri, HttpCbFun fun) = 0;
+    virtual void addChunkHttpApi(const string &uri, HttpCbFun fun) = 0;
+    virtual void setHttpFilter(HttpFilterFun filter) = 0;
     virtual void closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread = false) = 0;
-    virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body, bool closeFdFlag = false) = 0;
+    virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body) = 0;
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len) = 0;
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg) = 0;
     virtual string formJsonBody(int code, string message) = 0;
