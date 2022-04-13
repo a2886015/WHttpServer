@@ -57,4 +57,5 @@ public:
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len) = 0;
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg) = 0;
     virtual string formJsonBody(int code, string message) = 0;
+    virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg) = 0;
 };

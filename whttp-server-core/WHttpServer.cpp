@@ -197,6 +197,11 @@ string WHttpServer::formJsonBody(int code, string message)
     return sstream.str();
 }
 
+bool WHttpServer::isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg)
+{
+    return (httpMsg->httpConnection->label[CLIENT_CLOSE_BIT] == 1);
+}
+
 void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgData, void *cbData)
 {
     if (_httpPort == -1 && _httpsPort == -1)
