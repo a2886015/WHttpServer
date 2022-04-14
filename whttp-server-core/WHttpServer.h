@@ -42,6 +42,7 @@ public:
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg);
     virtual string formJsonBody(int code, string message);
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg);
+    virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg);
 
     static void toLowerString(string &str);
     static void toUpperString(string &str);

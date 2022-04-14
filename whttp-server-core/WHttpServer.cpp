@@ -249,6 +249,13 @@ bool WHttpServer::isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg)
     return (httpMsg->httpConnection->label[CLIENT_CLOSE_BIT] == 1);
 }
 
+shared_ptr<string> WHttpServer::deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg)
+{
+    string *res = nullptr;
+    httpMsg->chunkQueue->deQueue(res);
+    return shared_ptr<string>(res);
+}
+
 void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgData, void *cbData)
 {
     if (_httpPort == -1 && _httpsPort == -1)
@@ -589,11 +596,14 @@ void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_messa
     chunk->resize(httpCbData->chunk.len);
     memcpy((char*)chunk->c_str(), httpCbData->chunk.ptr, httpCbData->chunk.len);
     httpMsg->httpConnection->recv.len -= httpCbData->chunk.len;
+    bool res = httpMsg->chunkQueue->enQueue(chunk);
+    assert(res);
+    /*
     while(!httpMsg->chunkQueue->enQueue(chunk))
     {
         usleep(500);
     }
-    // std::cout << "chunk queue size is:" << GetChunkQueueSize(httpMsg) << std::endl;
+    */
     httpMsg->recvChunkSize += httpCbData->chunk.len;
     httpMsg->finishRecvChunk = (httpMsg->recvChunkSize >= httpMsg->totalBodySize);
 }

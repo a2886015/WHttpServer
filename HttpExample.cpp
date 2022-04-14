@@ -3,8 +3,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define HTTP_SEND_QUEUE_SIZE 3
-
 HttpExample::HttpExample()
 {
 
@@ -57,11 +55,153 @@ void HttpExample::handleHttpRequestTest(shared_ptr<HttpReqMsg> &httpMsg)
 
 void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
 {
-    if (httpMsg->method != "PUT" && httpMsg->method != "POST")
+    bool successFlag = true;
+    string errMsg = "";
+
+    string filePathPrefix = "/data/";
+
+    string parseBuf = "";
+    string extraDataBuf = "";
+
+    std::map<string, FILE *> fileWriterMap;
+    std::map<string, string> formParamsMap;
+
+    while(!httpMsg->finishRecvChunk || (httpMsg->chunkQueue->size() > 0))
     {
-        _httpServer->httpReplyJson(httpMsg, 404, "", _httpServer->formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
-        return;
+        if (!_httpServer->isRunning())
+        {
+            Logw("handleHttpBigFileUpload http server close");
+            errMsg = "http server will close";
+            successFlag = false;
+            break;
+        }
+
+        if (_httpServer->isClientDisconnect(httpMsg))
+        {
+            Logw("handleHttpBigFileUpload http client close the connection actively");
+            successFlag = false;
+            break;
+        }
+
+        shared_ptr<string> chunkData = _httpServer->deQueueHttpChunk(httpMsg);
+        if (!chunkData.get())
+        {
+            usleep(1000);
+            continue;
+        }
+
+        parseBuf.append(extraDataBuf);
+        extraDataBuf.clear();
+        parseBuf.append(*chunkData);
+        if (parseBuf.size() >= MIN_FORM_DATA_PARSE_SIZE)
+        {
+            successFlag = parseMultipartStream(parseBuf, extraDataBuf, fileWriterMap, formParamsMap, filePathPrefix, errMsg);
+            if (!successFlag)
+            {
+                break;
+            }
+            parseBuf.clear();
+        }
     }
+
+    if (successFlag && !parseBuf.empty())
+    {
+        successFlag = parseMultipartStream(parseBuf, extraDataBuf, fileWriterMap, formParamsMap, filePathPrefix, errMsg);
+    }
+
+    Logi("HttpServer::HandleFormDataUpload successFlag is %d, err msg is %s", successFlag, errMsg.c_str());
+
+    for (auto it = fileWriterMap.begin(); it != fileWriterMap.end(); it++)
+    {
+        fclose(it ->second);
+    }
+    fileWriterMap.clear();
+
+    if (successFlag)
+    {
+        _httpServer->httpReplyJson(httpMsg, 200, "", _httpServer->formJsonBody(HTTP_OK, "form-data upload success"));
+    }
+    else if (!successFlag && !errMsg.empty())
+    {
+        _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(HTTP_UPLOAD_FAIL, errMsg));
+    }
+}
+
+bool HttpExample::parseMultipartStream(string &parseBuf, string &extraDataBuf, std::map<string, FILE *> &fileWriterMap, std::map<string, string> &formParamsMap, string &filePathPrefix, string &errMsg)
+{
+    mg_http_part formInfo;
+    struct mg_str body;
+    body.ptr = (char *)parseBuf.c_str();
+    body.len = parseBuf.size();
+    int64_t offset = 0;
+    struct mg_str head;
+    struct mg_str extraData;
+    bool partCompleted = false;
+    do
+    {
+        /*
+        * xy_mg_http_next_multipart是我根据mongoose原生函数mg_http_next_multipart修改而来，专门用于解析流式http的
+        * form-data表单上传数据
+        */
+        size_t parseLoc = xy_mg_http_next_multipart(body, offset, &formInfo, &head, &extraData, &partCompleted);
+        if (parseLoc == 0)
+        {
+            extraDataBuf.assign(&body.ptr[offset], body.len - offset);
+        }
+        else if (parseLoc > 0)
+        {
+            offset = parseLoc;
+            string tempFileName = "";
+            tempFileName.assign(formInfo.filename.ptr, formInfo.filename.len);
+            string formKey = "";
+            formKey.assign(formInfo.name.ptr, formInfo.name.len);
+            if (!tempFileName.empty()) // form data file
+            {
+                if (fileWriterMap.find(tempFileName) == fileWriterMap.end())
+                {
+                    string filePath = filePathPrefix + tempFileName;
+                    FILE *tmpWriter = fopen(filePath.c_str(), "w");
+                    if (!tmpWriter)
+                    {
+                        errMsg = string("can not open file ") + filePath;
+                        return false;
+                    }
+
+                    fwrite((char *)formInfo.body.ptr, 1, formInfo.body.len, tmpWriter);
+                    fileWriterMap[tempFileName] = tmpWriter;
+                }
+                else
+                {
+                    FILE *tmpWriter  =  fileWriterMap[tempFileName];
+                    fwrite((char *)formInfo.body.ptr, 1, formInfo.body.len, tmpWriter);
+                }
+            }
+            else if (!formKey.empty()) // form data params
+            {
+                if (formParamsMap.find(formKey) == formParamsMap.end())
+                {
+                    string formValue = "";
+                    formValue.append(formInfo.body.ptr, formInfo.body.len);
+                    formParamsMap[formKey] = formValue;
+                }
+                else
+                {
+                    string &formValue = formParamsMap[formKey];
+                    formValue.append(formInfo.body.ptr, formInfo.body.len);
+                }
+            }
+
+            if (!partCompleted)
+            {
+                // save current header of form part
+                extraDataBuf.assign(head.ptr, head.len);
+                // add extra body data
+                extraDataBuf.append(extraData.ptr, extraData.len);
+            }
+        }
+    }
+    while(partCompleted);
+    return true;
 }
 
 void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
