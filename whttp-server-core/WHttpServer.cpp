@@ -109,14 +109,20 @@ bool WHttpServer::isRunning()
     return (_httpPort != -1 || _httpsPort != -1);
 }
 
-void WHttpServer::addHttpApi(const string &uri, HttpCbFun fun)
+void WHttpServer::addHttpApi(const string &uri, HttpCbFun fun, int httpMethods)
 {
-    _httpApiMap[uri] = fun;
+    HttpApiData httpApiData;
+    httpApiData.httpCbFun = fun;
+    httpApiData.httpMethods = httpMethods;
+    _httpApiMap[uri] = httpApiData;
 }
 
-void WHttpServer::addChunkHttpApi(const string &uri, HttpCbFun fun)
+void WHttpServer::addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods)
 {
-    _chunkHttpApiMap[uri] = fun;
+    HttpApiData httpApiData;
+    httpApiData.httpCbFun = fun;
+    httpApiData.httpMethods = httpMethods;
+    _chunkHttpApiMap[uri] = httpApiData;
 }
 
 void WHttpServer::setHttpFilter(HttpFilterFun filter)
@@ -153,6 +159,47 @@ void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool mainThrea
     {
         conn->is_draining = 1;
     }
+}
+
+std::set<string> WHttpServer::getSupportMethods(int httpMethods)
+{
+    std::set<string> methodsSet;
+    if (httpMethods & W_HTTP_GET)
+    {
+        methodsSet.insert("GET");
+    }
+
+    if (httpMethods & W_HTTP_GET)
+    {
+        methodsSet.insert("GET");
+    }
+
+    if (httpMethods & W_HTTP_POST)
+    {
+        methodsSet.insert("POST");
+    }
+
+    if (httpMethods & W_HTTP_PUT)
+    {
+        methodsSet.insert("PUT");
+    }
+
+    if (httpMethods & W_HTTP_DELETE)
+    {
+        methodsSet.insert("DELETE");
+    }
+
+    if (httpMethods & W_HTTP_HEAD)
+    {
+        methodsSet.insert("HEAD");
+    }
+
+    if (httpMethods & W_HTTP_ALL)
+    {
+        methodsSet.insert("ALL");
+    }
+
+    return methodsSet;
 }
 
 void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)
@@ -230,8 +277,8 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             return;
         }
-        HttpCbFun httpCbFun;
-        if (!findHttpCbFun(httpCbData, httpCbFun))
+        HttpApiData cbApiData;
+        if (!findHttpCbFun(httpCbData, cbApiData))
         {
             mg_http_reply(conn, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
             closeHttpConnection(conn, true);
@@ -239,13 +286,13 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         }
         shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData);
         _workingMsgMap[fd] = httpMsg;
-        _threadPool->concurrentRun(&WHttpServer::handleHttpMsg, this, std::ref(_workingMsgMap[fd]), httpCbFun);
+        _threadPool->concurrentRun(&WHttpServer::handleHttpMsg, this, std::ref(_workingMsgMap[fd]), cbApiData);
     }
     else if (msgType == MG_EV_HTTP_CHUNK)
     {
         struct mg_http_message *httpCbData = (struct mg_http_message *) msgData;
-        HttpCbFun chunkHttpCbFun;
-        if (!findChunkHttpCbFun(httpCbData, chunkHttpCbFun))
+        HttpApiData chunkCbApiData;
+        if (!findChunkHttpCbFun(httpCbData, chunkCbApiData))
         {
             return;
         }
@@ -253,7 +300,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData, true);
             _workingMsgMap[fd] = httpMsg;
-            _threadPool->concurrentRun(&WHttpServer::handleChunkHttpMsg, this, std::ref(_workingMsgMap[fd]), chunkHttpCbFun);
+            _threadPool->concurrentRun(&WHttpServer::handleChunkHttpMsg, this, std::ref(_workingMsgMap[fd]), chunkCbApiData);
         }
         else
         {
@@ -286,25 +333,40 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     }
 }
 
-void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpCbFun httpCbFun)
+void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData)
 {
     if (_httpFilterFun && !_httpFilterFun(httpMsg))
     {
         closeHttpConnection(httpMsg);
         return;
     }
-    httpCbFun(httpMsg);
+    set<string> methods = getSupportMethods(httpCbData.httpMethods);
+    if (methods.find(httpMsg->method) == methods.end() && methods.find("ALL") == methods.end())
+    {
+        httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+        closeHttpConnection(httpMsg);
+        return;
+    }
+
+    httpCbData.httpCbFun(httpMsg);
     closeHttpConnection(httpMsg);
 }
 
-void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpCbFun chunkHttpCbFun)
+void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData chunkHttpCbData)
 {
     if (_httpFilterFun && !_httpFilterFun(httpMsg))
     {
         closeHttpConnection(httpMsg);
         return;
     }
-    chunkHttpCbFun(httpMsg);
+    set<string> methods = getSupportMethods(chunkHttpCbData.httpMethods);
+    if (methods.find(httpMsg->method) == methods.end() && methods.find("ALL") == methods.end())
+    {
+        httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+        closeHttpConnection(httpMsg);
+        return;
+    }
+    chunkHttpCbData.httpCbFun(httpMsg);
     closeHttpConnection(httpMsg);
 }
 
@@ -345,7 +407,7 @@ shared_ptr<string> WHttpServer::deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMs
     return shared_ptr<string>(sendMsg);
 }
 
-bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbFun)
+bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, HttpApiData &cbApiData)
 {
     bool res = false;
     for (auto it = _chunkHttpApiMap.begin(); it != _chunkHttpApiMap.end(); it++)
@@ -360,7 +422,7 @@ bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbF
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
                 (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
-                cbFun = it->second;
+                cbApiData = it->second;
                 res = true;
                 break;
             }
@@ -392,7 +454,7 @@ bool WHttpServer::isValidHttpChunk(mg_http_message *httpCbData)
     return res;
 }
 
-bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbFun)
+bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, HttpApiData &cbApiData)
 {
     bool res = false;
     for (auto it = _httpApiMap.begin(); it != _httpApiMap.end(); it++)
@@ -407,7 +469,7 @@ bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, HttpCbFun &cbFun)
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
                 (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
-                cbFun = it->second;
+                cbApiData = it->second;
                 res = true;
                 break;
             }

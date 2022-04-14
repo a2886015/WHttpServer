@@ -15,6 +15,13 @@ using namespace std;
 #define Logw(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%u][W] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
 #define Loge(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%u][E] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
 
+#define W_HTTP_GET      (1 << 0)
+#define W_HTTP_POST     (1 << 1)
+#define W_HTTP_PUT      (1 << 2)
+#define W_HTTP_DELETE   (1 << 3)
+#define W_HTTP_HEAD     (1 << 4)
+#define W_HTTP_ALL      (1 << 15)
+
 using HttpChunkQueue = LockQueue<string *>;
 using HttpSendQueue = LockQueue<string *>;
 
@@ -49,8 +56,8 @@ public:
     virtual bool stop() = 0;
     virtual bool run() = 0;
     virtual bool isRunning() = 0;
-    virtual void addHttpApi(const string &uri, HttpCbFun fun) = 0;
-    virtual void addChunkHttpApi(const string &uri, HttpCbFun fun) = 0;
+    virtual void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods) = 0;
+    virtual void addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods) = 0;
     virtual void setHttpFilter(HttpFilterFun filter) = 0;
     virtual void closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread = false) = 0;
     virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body) = 0;
