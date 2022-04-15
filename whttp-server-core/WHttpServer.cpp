@@ -566,7 +566,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     }
     else
     {
-        Logi("HttpServer::ParseHttpMsg request id:%d have no content-length", conn->id);
+        Logi("HttpServer::ParseHttpMsg request id:%ld have no content-length", conn->id);
         res->totalBodySize = httpCbData->body.len;
     }
 
@@ -598,6 +598,10 @@ void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_messa
     httpMsg->httpConnection->recv.len -= httpCbData->chunk.len;
     bool res = httpMsg->chunkQueue->enQueue(chunk);
     assert(res);
+    if (httpMsg->chunkQueue->size() > CHUNK_QUEUE_SIZE_BOUNDARY)
+    {
+        usleep(500);
+    }
     /*
     while(!httpMsg->chunkQueue->enQueue(chunk))
     {

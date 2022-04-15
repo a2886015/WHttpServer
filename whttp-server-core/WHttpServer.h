@@ -6,6 +6,7 @@
 #include "WThreadPool.h"
 
 #define SEND_BUF_SIZE_BOUNDARY (3 * 1024 * 1024)
+#define CHUNK_QUEUE_SIZE_BOUNDARY 2000
 
 #define HTTP_UNKNOWN_REQUEST 100
 
