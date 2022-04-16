@@ -1,7 +1,7 @@
 # WHttpServer
 
 #### 介绍
-基于mongoose 7.3版本的源码，修改源码及二次封装，引入线程池编写的http服务，同时支持https
+基于mongoose 7.3版本的源码，修改源码及二次封装，引入线程池编写的http服务，同时支持https。
 使用示例可以查看HttpExample.cpp、HttpExample.h和main.cpp三个文件，里面分别举例了http普通接口、大文件上传、大文件下载3个典型场景
 
 #### 安装教程
@@ -36,17 +36,62 @@
 
 #### 重要数据类型
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+1.  using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>，http接口的回调函数
+2.  using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>，http接口的过滤函数
+3.  struct HttpReqMsg
+{
+   mg_connection *httpConnection = nullptr; // mongoose里面代表一个socket连接的结果体，外层不关心
+   string method; // http方法，可以是GET POST PUT DELETE等
+   string uri; 
+   map<string, string> querys; // the params in uri
+   string proto; // http version
+   map<string, string> headers; // http头部字段，其中key都被转为了小写，比如"Content-Length" 转为了 "content-length"
+   string body; // http body体数据
+   int64_t totalBodySize; // http body体数据大小，就是头部"content-length"值
+   shared_ptr<HttpChunkQueue> chunkQueue; // 大文件上传时，存储文件的数据块
+   shared_ptr<HttpSendQueue> sendQueue; // http返回给客户端的数据队列
+   int64_t recvChunkSize = 0; // 大文件上传时，已经接收到的数据块大小
+   bool finishRecvChunk = false; // 大文件上传时，判断是否所有数据都上传完成了
+};
 
+#### 注意事项
+1、所有http回调函数都是在子线程里面运行的，即使同一个回调函数，每次运行也不一定在一个线程，注意线程安全
+2、为了保证更好的性能，发动机函数run里面没有加锁，不是线程安全的，所以初始化之类的函数，如init、startHttp、addHttpApi之类的函数的调用需要在启动run函数之前运行，或者其和run函数在一个线程。
 
-#### 特技
+#### 示例代码
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+初始化代码：
+void HttpExample::start()
+{
+    _httpServer = new WHttpServer();
+    _httpServer->init(32);
+    HttpFilterFun filterFun = std::bind(&HttpExample::httpFilter, this, std::placeholders::_1);
+    _httpServer->setHttpFilter(filterFun);
+    _httpServer->startHttp(6200);
+
+    HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
+    _httpServer->addChunkHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
+
+    HttpCbFun bigFileUploadCbFun = std::bind(&HttpExample::handleHttpBigFileUpload, this, std::placeholders::_1);
+    _httpServer->addChunkHttpApi("/whttpserver/bigfileupload", bigFileUploadCbFun, W_HTTP_POST | W_HTTP_PUT);
+
+    HttpCbFun downloadFileCbFun = std::bind(&HttpExample::handleHttpDownloadFile, this, std::placeholders::_1);
+    _httpServer->addChunkHttpApi("/whttpserver/downloadFile/", downloadFileCbFun, W_HTTP_GET | W_HTTP_HEAD);
+}
+
+在main函数中启动发动机：
+while(true)
+{
+    httpTest.run();
+}
+
+http接口回调示例代码：
+void HttpExample::handleHttpRequestTest(shared_ptr<HttpReqMsg> &httpMsg)
+{
+    // You can add http headers like below
+    stringstream sstream;
+    sstream << "Access-Control-Allow-Origin: *" << "\r\n";
+    _httpServer->httpReplyJson(httpMsg, 200, sstream.str(), _httpServer->formJsonBody(0, "success"));
+    // _httpServer->httpReplyJson(httpMsg, 200, "", _httpServer->formJsonBody(0, "success"));
+}
+
