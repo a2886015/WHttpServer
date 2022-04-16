@@ -61,6 +61,8 @@
 #### 示例代码
 
 初始化代码：
+
+```
 void HttpExample::start()
 {
     _httpServer = new WHttpServer();
@@ -78,15 +80,21 @@ void HttpExample::start()
     HttpCbFun downloadFileCbFun = std::bind(&HttpExample::handleHttpDownloadFile, this, std::placeholders::_1);
     _httpServer->addChunkHttpApi("/whttpserver/downloadFile/", downloadFileCbFun, W_HTTP_GET | W_HTTP_HEAD);
 }
+```
+
 
 
 
 在main函数中启动发动机：
 
+
+```
 while(true)
 {
     httpTest.run();
 }
+```
+
 
 
 http接口回调示例代码：
