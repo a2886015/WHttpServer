@@ -79,13 +79,19 @@ void HttpExample::start()
     _httpServer->addChunkHttpApi("/whttpserver/downloadFile/", downloadFileCbFun, W_HTTP_GET | W_HTTP_HEAD);
 }
 
+
+
 在main函数中启动发动机：
+
 while(true)
 {
     httpTest.run();
 }
 
+
 http接口回调示例代码：
+
+```
 void HttpExample::handleHttpRequestTest(shared_ptr<HttpReqMsg> &httpMsg)
 {
     // You can add http headers like below
@@ -94,4 +100,6 @@ void HttpExample::handleHttpRequestTest(shared_ptr<HttpReqMsg> &httpMsg)
     _httpServer->httpReplyJson(httpMsg, 200, sstream.str(), _httpServer->formJsonBody(0, "success"));
     // _httpServer->httpReplyJson(httpMsg, 200, "", _httpServer->formJsonBody(0, "success"));
 }
+```
+
 
