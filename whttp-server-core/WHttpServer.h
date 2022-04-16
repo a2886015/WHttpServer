@@ -37,7 +37,7 @@ public:
     virtual void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods);
     virtual void addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods);
     virtual void setHttpFilter(HttpFilterFun filter);
-    virtual void closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread = false);
+    virtual void forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg);
     virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body);
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len);
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg);
@@ -74,7 +74,7 @@ private:
     shared_ptr<HttpReqMsg> parseHttpMsg(struct mg_connection *conn, struct mg_http_message *httpCbData, bool chunkFlag = false);
     void enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData);
     void releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg);
-    void closeHttpConnection(struct mg_connection *conn, bool mainThread = false);
+    void closeHttpConnection(struct mg_connection *conn, bool isDirectClose = false);
     std::set<string> getSupportMethods(int httpMethods);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);

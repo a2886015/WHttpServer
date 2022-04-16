@@ -137,24 +137,25 @@ void WHttpServer::setHttpFilter(HttpFilterFun filter)
     _httpFilterFun = filter;
 }
 
-void WHttpServer::closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread)
+void WHttpServer::forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg)
 {
     mg_connection *conn = httpMsg->httpConnection;
     if (conn->label[CLIENT_CLOSE_BIT] == 1)
     {
         conn->label[RECV_CLIENT_CLOSE_BIT] = 1;
-        return;
     }
 
     conn->label[NORMAL_CLOSE_BIT] = 1;
-    if (mainThread)
-    {
-        conn->is_draining = 1;
-    }
+    conn->is_closing = 1;
 }
 
-void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool mainThread)
+void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool isDirectClose)
 {
+    if (conn->label[NORMAL_CLOSE_BIT] == 1)
+    {
+        return;
+    }
+
     if (conn->label[CLIENT_CLOSE_BIT] == 1)
     {
         conn->label[RECV_CLIENT_CLOSE_BIT] = 1;
@@ -162,7 +163,7 @@ void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool mainThrea
     }
 
     conn->label[NORMAL_CLOSE_BIT] = 1;
-    if (mainThread)
+    if (isDirectClose)
     {
         conn->is_draining = 1;
     }
@@ -351,37 +352,37 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
 {
     if (_httpFilterFun && !_httpFilterFun(httpMsg))
     {
-        closeHttpConnection(httpMsg);
+        closeHttpConnection(httpMsg->httpConnection);
         return;
     }
     set<string> methods = getSupportMethods(httpCbData.httpMethods);
     if (methods.find(httpMsg->method) == methods.end() && methods.find("ALL") == methods.end())
     {
         httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
-        closeHttpConnection(httpMsg);
+        closeHttpConnection(httpMsg->httpConnection);
         return;
     }
 
     httpCbData.httpCbFun(httpMsg);
-    closeHttpConnection(httpMsg);
+    closeHttpConnection(httpMsg->httpConnection);
 }
 
 void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData chunkHttpCbData)
 {
     if (_httpFilterFun && !_httpFilterFun(httpMsg))
     {
-        closeHttpConnection(httpMsg);
+        closeHttpConnection(httpMsg->httpConnection);
         return;
     }
     set<string> methods = getSupportMethods(chunkHttpCbData.httpMethods);
     if (methods.find(httpMsg->method) == methods.end() && methods.find("ALL") == methods.end())
     {
         httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
-        closeHttpConnection(httpMsg);
+        closeHttpConnection(httpMsg->httpConnection);
         return;
     }
     chunkHttpCbData.httpCbFun(httpMsg);
-    closeHttpConnection(httpMsg);
+    closeHttpConnection(httpMsg->httpConnection);
 }
 
 void WHttpServer::sendHttpMsgPoll()

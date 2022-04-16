@@ -59,7 +59,7 @@ public:
     virtual void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods) = 0;
     virtual void addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods) = 0;
     virtual void setHttpFilter(HttpFilterFun filter) = 0;
-    virtual void closeHttpConnection(shared_ptr<HttpReqMsg> httpMsg, bool mainThread = false) = 0;
+    virtual void forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body) = 0;
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len) = 0;
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg) = 0;
