@@ -43,9 +43,12 @@
 
 #### 重要数据类型
 
-1.  using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>，http接口的回调函数
-2.  using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>，http接口的过滤函数
-3.  struct HttpReqMsg
+1. using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>，http接口的回调函数
+2. using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>，http接口的过滤函数
+3. HttpReqMsg结构体
+
+```
+ struct HttpReqMsg
 {
    mg_connection *httpConnection = nullptr; // mongoose里面代表一个socket连接的结果体，外层不关心
    string method; // http方法，可以是GET POST PUT DELETE等
@@ -60,6 +63,8 @@
    int64_t recvChunkSize = 0; // 大文件上传时，已经接收到的数据块大小
    bool finishRecvChunk = false; // 大文件上传时，判断是否所有数据都上传完成了
 };
+```
+
 
 #### 注意事项
 1、所有http回调函数都是在子线程里面运行的，即使同一个回调函数，每次运行也不一定在一个线程，注意线程安全
