@@ -24,6 +24,7 @@ void HttpExample::start()
     HttpFilterFun filterFun = std::bind(&HttpExample::httpFilter, this, std::placeholders::_1);
     _httpServer->setHttpFilter(filterFun);
     _httpServer->startHttp(6200);
+    // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
     _httpServer->addChunkHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);

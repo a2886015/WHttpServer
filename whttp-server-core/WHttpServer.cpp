@@ -27,13 +27,13 @@ bool WHttpServer::startHttp(int port)
     std::unique_lock<mutex> locker(_httpLocker);
     if (!_threadPool)
     {
-        Logw("HttpServer::StartHttp do not init");
+        Logw("WHttpServer::StartHttp do not init");
         return false;
     }
 
     if (_httpPort != -1)
     {
-        Logw("HttpServer::StartHttp http server is already start port:%d", _httpPort);
+        Logw("WHttpServer::StartHttp http server is already start port:%d", _httpPort);
         return false;
     }
     std::stringstream sstream;
@@ -43,10 +43,10 @@ bool WHttpServer::startHttp(int port)
     mg_connection *serverConn = mg_http_listen(&_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
     if (!serverConn)
     {
-        Logw("HttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
+        Logw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
         return false;
     }
-    Logi("HttpServer::StartHttp http server start success: %s", sstream.str().c_str());
+    Logi("WHttpServer::StartHttp http server start success: %s", sstream.str().c_str());
     _httpPort = port;
     return true;
 }
@@ -56,13 +56,13 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
     std::unique_lock<mutex> locker(_httpLocker);
     if (!_threadPool)
     {
-        Logw("HttpServer::StartHttps do not init");
+        Logw("WHttpServer::StartHttps do not init");
         return false;
     }
 
     if (_httpsPort != -1)
     {
-        Logw("HttpServer::StartHttps https server is already start port:%d", _httpsPort);
+        Logw("WHttpServer::StartHttps https server is already start port:%d", _httpsPort);
         return false;
     }
     _certPath = certPath;
@@ -74,10 +74,10 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
     mg_connection *serverConn = mg_http_listen(&_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
     if (!serverConn)
     {
-        Logw("HttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
+        Logw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
         return false;
     }
-    Logi("HttpServer::StartHttps https server start success: %s", sstream.str().c_str());
+    Logi("WHttpServer::StartHttps https server start success: %s", sstream.str().c_str());
     _httpsPort = port;
     return true;
 }
@@ -282,7 +282,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         opts.ciphers = nullptr;
         opts.srvname.ptr = nullptr;
         opts.srvname.len = 0;
-        Logi("HttpServer::recvHttpRequest https connect come id:%ld", conn->id);
+        Logi("WHttpServer::recvHttpRequest https connect come id:%ld", conn->id);
         mg_tls_init(conn, &opts);
     }
     else if (msgType == MG_EV_HTTP_MSG)
@@ -325,7 +325,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     }
     else if (msgType == MG_EV_CLOSE)
     {
-        Logi("HttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
+        Logi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
         if (conn->label[VALID_HTTP_BIT] != 1)
         {
             return;
@@ -502,13 +502,13 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
 
     if (httpCbData->message.len < 1024)
     {
-        Logi("HttpServer::ParseHttpMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
+        Logi("WHttpServer::ParseHttpMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
     }
     else
     {
         char msg[1024] = {0};
         memcpy(msg, httpCbData->message.ptr, 1024);
-        Logi("HttpServer::ParseHttpMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
+        Logi("WHttpServer::ParseHttpMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
 
     res->method.resize(httpCbData->method.len);
@@ -574,7 +574,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     }
     else
     {
-        Logi("HttpServer::ParseHttpMsg request id:%ld have no content-length", conn->id);
+        Logi("WHttpServer::ParseHttpMsg request id:%ld have no content-length", conn->id);
         res->totalBodySize = httpCbData->body.len;
     }
 
