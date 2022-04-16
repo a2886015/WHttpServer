@@ -85,8 +85,15 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
 bool WHttpServer::stop()
 {
     std::unique_lock<mutex> locker(_httpLocker);
+    if (_httpPort == -1 && _httpsPort == -1)
+    {
+        return true;
+    }
+
     _httpPort = -1;
     _httpsPort = -1;
+    usleep(100*1000); // make sure run() can not can mg_mgr_poll
+
     mg_mgr_free(&_mgr);
     return true;
 }
