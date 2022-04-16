@@ -3,7 +3,8 @@
 #### 介绍
 基于mongoose 7.3版本的源码，修改源码及二次封装，引入线程池编写的http服务，同时支持https。
 使用示例可以查看HttpExample.cpp、HttpExample.h和main.cpp三个文件，里面分别举例了http普通接口、大文件上传、大文件下载3个典型场景。
-运行操作系统暂时只支持linux，但是是可以做跨平台适配的，只是一般http服务都运行在linux系统上，感觉没必要做这个工作
+
+操作系统：Linux
 
 #### 安装教程
 
