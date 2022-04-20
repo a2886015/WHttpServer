@@ -20,7 +20,7 @@ using namespace std;
 #define W_HTTP_PUT      (1 << 2)
 #define W_HTTP_DELETE   (1 << 3)
 #define W_HTTP_HEAD     (1 << 4)
-#define W_HTTP_ALL      (1 << 15)
+#define W_HTTP_ALL      0xFF
 
 using HttpChunkQueue = LockQueue<string *>;
 using HttpSendQueue = LockQueue<string *>;

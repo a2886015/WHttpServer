@@ -202,11 +202,6 @@ std::set<string> WHttpServer::getSupportMethods(int httpMethods)
         methodsSet.insert("HEAD");
     }
 
-    if (httpMethods & W_HTTP_ALL)
-    {
-        methodsSet.insert("ALL");
-    }
-
     return methodsSet;
 }
 
@@ -356,7 +351,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
         return;
     }
     set<string> methods = getSupportMethods(httpCbData.httpMethods);
-    if (methods.find(httpMsg->method) == methods.end() && methods.find("ALL") == methods.end())
+    if (methods.find(httpMsg->method) == methods.end())
     {
         httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
         closeHttpConnection(httpMsg->httpConnection);
@@ -375,7 +370,7 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiDat
         return;
     }
     set<string> methods = getSupportMethods(chunkHttpCbData.httpMethods);
-    if (methods.find(httpMsg->method) == methods.end() && methods.find("ALL") == methods.end())
+    if (methods.find(httpMsg->method) == methods.end())
     {
         httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
         closeHttpConnection(httpMsg->httpConnection);
