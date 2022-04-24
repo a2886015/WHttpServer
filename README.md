@@ -72,7 +72,7 @@
 
 2、为了保证更好的性能，发动机函数run里面没有加锁，不是线程安全的，所以初始化之类的函数，如init、startHttp、addHttpApi之类的函数的调用需要在启动run函数之前运行，或者其和run函数在一个线程。
 
-3、addHttpApi和addChunkHttpApi函数给uri时，不要给可能重复匹配的uri，否则只要1个生效。比如给“/test”和”/test/dotest“这样的，因为当uri是”/test/dotest“时，“/test”也是可以匹配成功，我认为这种情况属于uri没有设计好，不想像node.js一样提供next函数处理这种情况。若你uri直接给‘/’，那么估计所有的回调全都会进‘/’的回调函数中
+3、addHttpApi和addChunkHttpApi函数给uri时，不要给可能重复匹配的uri，否则只有1个生效。比如给“/test”和”/test/dotest“这样的，因为当uri是”/test/dotest“时，“/test”也是可以匹配成功，我认为这种情况属于uri没有设计好，不想像node.js一样提供next函数处理这种情况。若你uri直接给‘/’，那么估计所有的回调全都会进‘/’的回调函数中
 
 #### 示例代码
 
