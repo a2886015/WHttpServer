@@ -321,7 +321,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     else if (msgType == MG_EV_CLOSE)
     {
         Logi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
-        if (conn->label[VALID_HTTP_BIT] != 1)
+        if (conn->label[VALID_CONNECT_BIT] != 1)
         {
             return;
         }
@@ -492,7 +492,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
 {
     shared_ptr<HttpReqMsg> res = shared_ptr<HttpReqMsg>(new HttpReqMsg());
     res->httpConnection = conn;
-    conn->label[VALID_HTTP_BIT] = 1;
+    conn->label[VALID_CONNECT_BIT] = 1;
     res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
 
     if (httpCbData->message.len < 1024)

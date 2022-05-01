@@ -724,7 +724,7 @@ struct mg_mgr {
 #define NORMAL_CLOSE_BIT 20
 #define CLIENT_CLOSE_BIT 21
 #define RECV_CLIENT_CLOSE_BIT 22
-#define VALID_HTTP_BIT 23
+#define VALID_CONNECT_BIT 23
 
 struct mg_connection {
   struct mg_connection *next;  // Linkage in struct mg_mgr :: connections
