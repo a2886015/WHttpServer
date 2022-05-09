@@ -823,10 +823,10 @@ void mg_http_serve_file(struct mg_connection *, struct mg_http_message *,
                         const char *, const char *mime, const char *headers);
 void mg_http_reply(struct mg_connection *, int status_code, const char *headers,
                    const char *body_fmt, ...);
-void xy_mg_http_reply(struct mg_connection *c, int code, const char *headers,
+void w_mg_http_reply(struct mg_connection *c, int code, const char *headers,
                       const char *body, int64_t bodyLen, int64_t totalLen);
-void xy_sync_mg_send(struct mg_connection *c, const char* data, int len);
-long xy_sync_mg_tls_send(struct mg_connection *c, const void *buf, size_t len);
+void w_sync_mg_send(struct mg_connection *c, const char* data, int len);
+long w_sync_mg_tls_send(struct mg_connection *c, const void *buf, size_t len);
 const char *mg_http_status_code_str(int status_code);
 struct mg_str *mg_http_get_header(struct mg_http_message *, const char *name);
 void mg_http_event_handler(struct mg_connection *c, int ev);
@@ -840,7 +840,7 @@ int mg_http_upload(struct mg_connection *, struct mg_http_message *hm,
 void mg_http_bauth(struct mg_connection *, const char *user, const char *pass);
 struct mg_str mg_http_get_header_var(struct mg_str s, struct mg_str v);
 size_t mg_http_next_multipart(struct mg_str, size_t, struct mg_http_part *);
-size_t xy_mg_http_next_multipart(struct mg_str body, size_t ofs, struct mg_http_part *part, 
+size_t w_mg_http_next_multipart(struct mg_str body, size_t ofs, struct mg_http_part *part,
                                  struct mg_str *head, struct mg_str *extraData, bool *partCompleted);
 
 void mg_http_serve_ssi(struct mg_connection *c, const char *root,

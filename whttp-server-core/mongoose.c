@@ -472,7 +472,7 @@ size_t mg_http_next_multipart(struct mg_str body, size_t ofs,
   return b2 + 2;
 }
 
-size_t xy_mg_http_next_multipart(struct mg_str body, size_t ofs, struct mg_http_part *part, 
+size_t w_mg_http_next_multipart(struct mg_str body, size_t ofs, struct mg_http_part *part, 
                                   struct mg_str *head, struct mg_str *extraData, bool *partCompleted)
 {
   *partCompleted = false;
@@ -846,7 +846,7 @@ void mg_http_reply(struct mg_connection *c, int code, const char *headers,
   if (buf != mem) free(buf);
 }
 
-void xy_mg_http_reply(struct mg_connection *c, int code, const char *headers,
+void w_mg_http_reply(struct mg_connection *c, int code, const char *headers,
                       const char *body, int64_t bodyLen, int64_t totalLen) {
     mg_printf(c, "HTTP/1.1 %d %s\r\n%sContent-Length: %d\r\n\r\n", code,
               mg_http_status_code_str(code), headers == NULL ? "" : headers, totalLen);
@@ -2936,7 +2936,7 @@ static void read_conn(struct mg_connection *c) {
   }
 }
 
-void xy_sync_mg_send(struct mg_connection *c, const char* data, int len)
+void w_sync_mg_send(struct mg_connection *c, const char* data, int len)
 {
   if (c->label[CLIENT_CLOSE_BIT] == 1)
   {
@@ -3893,7 +3893,7 @@ long mg_tls_send(struct mg_connection *c, const void *buf, size_t len) {
   return n == 0 ? -1 : n < 0 && mg_tls_err(tls, n) == 0 ? 0 : n;
 }
 
-long xy_sync_mg_tls_send(struct mg_connection *c, const void *buf, size_t len) {
+long w_sync_mg_tls_send(struct mg_connection *c, const void *buf, size_t len) {
   struct mg_tls *tls = (struct mg_tls *) c->tls;
   SSL_clear_mode(tls->ssl, SSL_MODE_ASYNC);
   int n = SSL_write(tls->ssl, buf, (int) len);

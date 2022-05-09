@@ -141,10 +141,10 @@ bool HttpExample::parseMultipartStream(string &parseBuf, string &extraDataBuf, s
     do
     {
         /*
-        * xy_mg_http_next_multipart是我根据mongoose原生函数mg_http_next_multipart修改而来，专门用于解析流式http的
+        * w_mg_http_next_multipart是我根据mongoose原生函数mg_http_next_multipart修改而来，专门用于解析流式http的
         * form-data表单上传数据
         */
-        size_t parseLoc = xy_mg_http_next_multipart(body, offset, &formInfo, &head, &extraData, &partCompleted);
+        size_t parseLoc = w_mg_http_next_multipart(body, offset, &formInfo, &head, &extraData, &partCompleted);
         if (parseLoc == 0)
         {
             extraDataBuf.assign(&body.ptr[offset], body.len - offset);
