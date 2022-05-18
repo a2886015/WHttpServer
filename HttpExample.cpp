@@ -27,13 +27,13 @@ void HttpExample::start()
     // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
-    _httpServer->addChunkHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
+    _httpServer->addHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
 
     HttpCbFun bigFileUploadCbFun = std::bind(&HttpExample::handleHttpBigFileUpload, this, std::placeholders::_1);
     _httpServer->addChunkHttpApi("/whttpserver/bigfileupload", bigFileUploadCbFun, W_HTTP_POST | W_HTTP_PUT);
 
     HttpCbFun downloadFileCbFun = std::bind(&HttpExample::handleHttpDownloadFile, this, std::placeholders::_1);
-    _httpServer->addChunkHttpApi("/whttpserver/downloadFile/", downloadFileCbFun, W_HTTP_GET | W_HTTP_HEAD);
+    _httpServer->addHttpApi("/whttpserver/downloadFile/", downloadFileCbFun, W_HTTP_GET | W_HTTP_HEAD);
 }
 
 /*
