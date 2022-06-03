@@ -3,8 +3,11 @@
 #include "IHttpServer.h"
 #include <mutex>
 #include <set>
+#include <vector>
+#include <time.h>
 #include "WThreadPool.h"
 
+#define HTTP_SEND_QUEUE_SIZE 3
 #define SEND_BUF_SIZE_BOUNDARY (3 * 1024 * 1024)
 #define CHUNK_QUEUE_SIZE_BOUNDARY 2000
 
@@ -13,14 +16,21 @@
 class WHttpServer;
 struct HttpCbMsg
 {
-   WHttpServer *httpServer;
-   bool httpsFlag;
+   WHttpServer *httpServer = nullptr;
+   bool httpsFlag = false;
 };
 
 struct HttpApiData
 {
-    HttpCbFun httpCbFun;
-    int httpMethods;
+    HttpCbFun httpCbFun = nullptr;
+    int httpMethods = -1;
+    bool findStaticFileFlag = false;
+};
+
+struct HttpStaticWebDir
+{
+    string dirPath = "";
+    string header = "";
 };
 
 class WHttpServer: public IHttpServer
@@ -44,6 +54,7 @@ public:
     virtual string formJsonBody(int code, string message);
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg);
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg);
+    virtual bool addStaticWebDir(const string &dir, const string &header = "");
 
     static void toLowerString(string &str);
     static void toUpperString(string &str);
@@ -62,6 +73,7 @@ private:
     std::map<string, HttpApiData> _httpApiMap;
     std::map<string, HttpApiData> _chunkHttpApiMap;
     HttpFilterFun _httpFilterFun = nullptr;
+    vector<HttpStaticWebDir> _staticDirVect;
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData);
@@ -76,8 +88,13 @@ private:
     void releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg);
     void closeHttpConnection(struct mg_connection *conn, bool isDirectClose = false);
     std::set<string> getSupportMethods(int httpMethods);
+    bool handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticWebDir &webDir);
+    void readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentLength,
+                           int64_t startByte);
+    void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
+    static uint64_t getSysTickCountInMilliseconds();
 };
 
 

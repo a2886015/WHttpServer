@@ -66,4 +66,5 @@ public:
     virtual string formJsonBody(int code, string message) = 0;
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg) = 0;
+    virtual bool addStaticWebDir(const string &dir, const string &header = "") = 0;
 };

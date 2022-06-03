@@ -6,7 +6,6 @@
 #define HTTP_OK 0
 #define HTTP_UPLOAD_FAIL 106
 
-#define HTTP_SEND_QUEUE_SIZE 3
 #define MIN_FORM_DATA_PARSE_SIZE (100 * 1024)
 
 class HttpExample

@@ -540,6 +540,7 @@ void mg_timer_poll(unsigned long uptime_ms);
 #endif
 #endif
 
+bool mg_is_dir(const char *path);
 char *mg_file_read(const char *path, size_t *size);
 int64_t mg_file_size(const char *path);
 bool mg_file_write(const char *path, const void *buf, size_t len);
@@ -808,6 +809,7 @@ struct mg_http_part {
   struct mg_str body;      // Part contents
 };
 
+const char *guess_content_type(const char *filename);
 int mg_http_parse(const char *s, size_t len, struct mg_http_message *);
 int mg_http_get_request_len(const unsigned char *buf, size_t buf_len);
 void mg_http_printf_chunk(struct mg_connection *cnn, const char *fmt, ...);

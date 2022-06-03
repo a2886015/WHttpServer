@@ -910,7 +910,7 @@ static void static_cb(struct mg_connection *c, int ev, void *ev_data,
   (void) ev_data;
 }
 
-static const char *guess_content_type(const char *filename) {
+const char *guess_content_type(const char *filename) {
   size_t n = strlen(filename);
 #define MIME_ENTRY(_ext, _type) \
   { _ext, sizeof(_ext) - 1, _type }

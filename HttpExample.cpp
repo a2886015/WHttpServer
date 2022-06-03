@@ -210,6 +210,14 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     string fileName = httpMsg->uri.substr(strlen("/whttpserver/downloadFile/"));
     string filePath = "/data/" + fileName;
 
+    FILE *file = fopen(filePath.c_str(), "r");
+    if (!file)
+    {
+        Logw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
+        _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(101, "can not open file"));
+        return;
+    }
+
     struct stat statbuf;
     stat(filePath.c_str(), &statbuf);
     int64_t fileSize = statbuf.st_size;
@@ -224,14 +232,6 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 
     if (httpMsg->method == "HEAD")
     {
-        return;
-    }
-
-    FILE *file = fopen(filePath.c_str(), "r");
-    if (!file)
-    {
-        Logw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
-        _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(101, "can not open file"));
         return;
     }
 

@@ -205,6 +205,143 @@ std::set<string> WHttpServer::getSupportMethods(int httpMethods)
     return methodsSet;
 }
 
+bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticWebDir &webDir)
+{
+    string filePath = webDir.dirPath + httpMsg->uri;
+
+    FILE *file = fopen(filePath.c_str(), "r");
+    if (!file)
+    {
+        Logw("WHttpServer::handleStaticWebDir can not open file:%s", filePath.c_str());
+        httpReplyJson(httpMsg, 500, "", formJsonBody(101, "can not find this file"));
+        return false;
+    }
+
+    struct stat statbuf;
+    stat(filePath.c_str(), &statbuf);
+    int64_t fileSize = statbuf.st_size;
+
+    stringstream sstream;
+    sstream << "HTTP/1.1 200 OK\r\n";
+    sstream << "Content-Type: " << guess_content_type(filePath.c_str()) << "\r\n";
+    if (!webDir.header.empty())
+    {
+        sstream << webDir.header;
+    }
+    // sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
+    if (httpMsg->method == "HEAD")
+    {
+        sstream << "Content-Length: " << fileSize << "\r\n";
+        sstream << "\r\n"; // 空行表示http头部完成
+        addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+    }
+    else
+    {
+        if (httpMsg->headers.find("range") != httpMsg->headers.end())
+        {
+            string rangeStr = httpMsg->headers["range"];
+            int64_t startByte = 0, endByte = 0;
+            parseRangeStr(rangeStr, startByte, endByte, fileSize);
+            startByte = startByte < 0 ? 0 : startByte;
+            endByte = (endByte > fileSize - 1) ? (fileSize - 1) : endByte;
+            int64_t contentLength = endByte - startByte + 1;
+            contentLength = contentLength < 0 ? 0 : contentLength;
+            sstream << "Content-Range: bytes " << startByte << "-" << endByte << "/" << fileSize << "\r\n";
+            sstream << "Accept-Ranges: bytes\r\n";
+            sstream << "Content-Length: " << contentLength << "\r\n";
+            sstream << "\r\n";
+            addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+            readStaticWebFile(httpMsg, file, contentLength, startByte);
+        }
+        else
+        {
+            sstream << "Content-Length: " << fileSize << "\r\n";
+            sstream << "\r\n";
+            addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+            readStaticWebFile(httpMsg, file, fileSize, 0);
+        }
+    }
+
+    fclose(file);
+    return true;
+}
+
+void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentSize, int64_t startByte)
+{
+    int64_t currentReadSize = 0;
+    int64_t maxPerReadSize = 1024*1024;
+    int64_t perReadSize = contentSize > maxPerReadSize ? maxPerReadSize : contentSize;
+    int64_t remainSize;
+
+    uint64_t currentMs = 0;
+    uint64_t lastWriteMs =  getSysTickCountInMilliseconds();
+    fseek(file, startByte, SEEK_SET);
+    while((remainSize = contentSize - currentReadSize) > 0 && isRunning())
+    {
+        if (isClientDisconnect(httpMsg))
+        {
+            Logw("WHttpServer::readStaticWebFile http client close the connection actively");
+            break;
+        }
+
+        // 为了防止发送队列里的数据太大，占用大量内存，当发送队列里面的数据达到一定量，先等待
+        if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
+        {
+            currentMs = getSysTickCountInMilliseconds();
+            if (currentMs - lastWriteMs > 20 * 1000)
+            {
+                Logi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
+                forceCloseHttpConnection(httpMsg);
+                return;
+            }
+            usleep(1000);
+            continue;
+        }
+
+        string *fileStr = new string();
+        fileStr->resize(perReadSize);
+
+        int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
+        int64_t readSize = fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
+        currentReadSize += readSize;
+        if (readSize == 0)
+        {
+            Logw("WHttpServer::readStaticWebFile read size is 0");
+            delete fileStr;
+            break;
+        }
+
+        if (readSize != perReadSize)
+        {
+            fileStr->resize(readSize);
+        }
+
+        addSendMsgToQueue(httpMsg, fileStr);
+        lastWriteMs =  getSysTickCountInMilliseconds();
+    }
+}
+
+void WHttpServer::parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize)
+{
+    startByte = 0;
+    endByte = 0;
+    size_t equalMarkIndex = rangeStr.find('=');
+    size_t lineMarkIndex = rangeStr.find('-');
+    if (equalMarkIndex == string::npos || lineMarkIndex == string::npos)
+    {
+        return;
+    }
+    startByte = stoll(rangeStr.substr(equalMarkIndex + 1, lineMarkIndex - equalMarkIndex - 1));
+    if (lineMarkIndex == rangeStr.size() - 1)
+    {
+        endByte = fileSize - 1;
+    }
+    else
+    {
+        endByte = stoll(rangeStr.substr(lineMarkIndex + 1));
+    }
+}
+
 void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)
 {
     stringstream sstream;
@@ -259,6 +396,28 @@ shared_ptr<string> WHttpServer::deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg)
     return shared_ptr<string>(res);
 }
 
+bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
+{
+    char tempDir[PATH_MAX];
+    if (!realpath(dir.c_str(), tempDir))
+    {
+        Loge("WHttpServer::addStaticWebDir the dir path is wrong: %s", dir.c_str());
+        return false;
+    }
+
+    if (!mg_is_dir(tempDir))
+    {
+        Loge("WHttpServer::addStaticWebDir is not dir: %s", dir.c_str());
+        return false;
+    }
+
+    HttpStaticWebDir staticDir;
+    staticDir.dirPath = tempDir;
+    staticDir.header = header;
+    _staticDirVect.push_back(staticDir);
+    return true;
+}
+
 void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgData, void *cbData)
 {
     if (_httpPort == -1 && _httpsPort == -1)
@@ -290,9 +449,16 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         HttpApiData cbApiData;
         if (!findHttpCbFun(httpCbData, cbApiData))
         {
-            mg_http_reply(conn, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
-            closeHttpConnection(conn, true);
-            return;
+            if (mg_vcasecmp(&(httpCbData->method), "GET") != 0)
+            {
+                mg_http_reply(conn, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+                closeHttpConnection(conn, true);
+                return;
+            }
+            else
+            {
+                cbApiData.findStaticFileFlag = true;
+            }
         }
         shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData);
         _workingMsgMap[fd] = httpMsg;
@@ -345,20 +511,40 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
 
 void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData)
 {
-    if (_httpFilterFun && !_httpFilterFun(httpMsg))
+    if (httpCbData.findStaticFileFlag)
     {
-        closeHttpConnection(httpMsg->httpConnection);
-        return;
+        bool findFlag = false;
+        for(int i = 0; i < (int)_staticDirVect.size(); i++)
+        {
+            if (handleStaticWebDir(httpMsg, _staticDirVect[i]))
+            {
+                findFlag = true;
+                break;
+            }
+        }
+
+        if (!findFlag)
+        {
+            httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+        }
     }
-    set<string> methods = getSupportMethods(httpCbData.httpMethods);
-    if (methods.find(httpMsg->method) == methods.end())
+    else
     {
-        httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
-        closeHttpConnection(httpMsg->httpConnection);
-        return;
+        if (_httpFilterFun && !_httpFilterFun(httpMsg))
+        {
+            closeHttpConnection(httpMsg->httpConnection);
+            return;
+        }
+        set<string> methods = getSupportMethods(httpCbData.httpMethods);
+        if (methods.find(httpMsg->method) == methods.end())
+        {
+            httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+            closeHttpConnection(httpMsg->httpConnection);
+            return;
+        }
+        httpCbData.httpCbFun(httpMsg);
     }
 
-    httpCbData.httpCbFun(httpMsg);
     closeHttpConnection(httpMsg->httpConnection);
 }
 
@@ -430,7 +616,7 @@ bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, HttpApiData &c
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
-                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+                    (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
                 cbApiData = it->second;
                 res = true;
@@ -454,7 +640,7 @@ bool WHttpServer::isValidHttpChunk(mg_http_message *httpCbData)
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
-                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+                    (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
                 res = true;
                 break;
@@ -477,7 +663,7 @@ bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, HttpApiData &cbApiD
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
-                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+                    (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
                 cbApiData = it->second;
                 res = true;
@@ -652,4 +838,17 @@ void WHttpServer::recvHttpRequestCallback(mg_connection *conn, int msgType, void
 {
     HttpCbMsg *cbMsg = (HttpCbMsg *)cbData;
     cbMsg->httpServer->recvHttpRequest(conn, msgType, msgData, cbData);
+}
+
+uint64_t WHttpServer::getSysTickCountInMilliseconds()
+{
+    timespec time;
+    int ret = clock_gettime(CLOCK_MONOTONIC, &time);
+
+    if (ret != 0)
+    {
+        printf("get clock error!\n");
+    }
+    uint64_t result = ((uint64_t)time.tv_sec) * 1000 + ((uint64_t)time.tv_nsec) / 1000000;
+    return result;
 }
