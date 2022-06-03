@@ -23,6 +23,7 @@ void HttpExample::start()
     _httpServer->init(32);
     HttpFilterFun filterFun = std::bind(&HttpExample::httpFilter, this, std::placeholders::_1);
     _httpServer->setHttpFilter(filterFun);
+    _httpServer->addStaticWebDir("../web");
     _httpServer->startHttp(6200);
     // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
 

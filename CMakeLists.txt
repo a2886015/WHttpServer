@@ -25,3 +25,5 @@ target_link_libraries(${PROJECT_NAME}
                       ssl
                       crypto
 )
+
+set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin)
