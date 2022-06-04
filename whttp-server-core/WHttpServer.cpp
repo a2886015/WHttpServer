@@ -449,7 +449,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         HttpApiData cbApiData;
         if (!findHttpCbFun(httpCbData, cbApiData))
         {
-            if (mg_vcasecmp(&(httpCbData->method), "GET") != 0)
+            if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0))
             {
                 mg_http_reply(conn, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
                 closeHttpConnection(conn, true);
