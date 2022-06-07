@@ -18,7 +18,7 @@
 4. bool stop()，停止http和https服务，在析构函数函数里面已经调用
 5. bool run()，服务运行的发动机，外部必须用一个死循环一直调用该函数
 6. bool isRunning()，查看服务是否还在运行中
-7. void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods)，添加普通的http回调接口，其中httpMethods以数据的不同位职位代表不同的http方法，具体如下：
+7. void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods)，添加普通的http回调接口，其中httpMethods以数据的不同位置位代表不同的http方法，具体如下：
 
 
 ```
