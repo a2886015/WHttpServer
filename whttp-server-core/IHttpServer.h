@@ -40,6 +40,8 @@ struct HttpReqMsg
    shared_ptr<HttpSendQueue> sendQueue;
    int64_t recvChunkSize = 0;
    bool finishRecvChunk = false;
+   bool isKeepingAlive = false;
+   int64_t lastKeepAliveTime = 0;
 };
 
 using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>;

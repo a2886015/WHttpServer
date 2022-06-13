@@ -6,12 +6,16 @@
 #include <vector>
 #include <time.h>
 #include "WThreadPool.h"
+#include <atomic>
 
 #define HTTP_SEND_QUEUE_SIZE 3
 #define SEND_BUF_SIZE_BOUNDARY (3 * 1024 * 1024)
 #define CHUNK_QUEUE_SIZE_BOUNDARY 2000
 
 #define HTTP_UNKNOWN_REQUEST 100
+
+#define MAX_KEEP_ALIVE_NUM 100
+#define KEEP_ALIVE_TIME 5 // 5s
 
 class WHttpServer;
 struct HttpCbMsg
@@ -74,6 +78,7 @@ private:
     std::map<string, HttpApiData> _chunkHttpApiMap;
     HttpFilterFun _httpFilterFun = nullptr;
     vector<HttpStaticWebDir> _staticDirVect;
+    std::atomic<int> _currentKeepAliveNum {0};
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData);

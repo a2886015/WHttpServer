@@ -140,11 +140,7 @@ void WHttpServer::setHttpFilter(HttpFilterFun filter)
 void WHttpServer::forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg)
 {
     mg_connection *conn = httpMsg->httpConnection;
-    if (conn->label[CLIENT_CLOSE_BIT] == 1)
-    {
-        conn->label[RECV_CLIENT_CLOSE_BIT] = 1;
-    }
-
+    conn->label[IN_HANDLE_BIT] = 0;
     conn->label[NORMAL_CLOSE_BIT] = 1;
     conn->is_closing = 1;
 }
@@ -156,12 +152,7 @@ void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool isDirectC
         return;
     }
 
-    if (conn->label[CLIENT_CLOSE_BIT] == 1)
-    {
-        conn->label[RECV_CLIENT_CLOSE_BIT] = 1;
-        return;
-    }
-
+    conn->label[IN_HANDLE_BIT] = 0;
     conn->label[NORMAL_CLOSE_BIT] = 1;
     if (isDirectClose)
     {
@@ -224,6 +215,24 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
     stringstream sstream;
     sstream << "HTTP/1.1 200 OK\r\n";
     sstream << "Content-Type: " << guess_content_type(filePath.c_str()) << "\r\n";
+    map<string, string> &reqHeaders = httpMsg->headers;
+    if (httpMsg->isKeepingAlive)
+    {
+        sstream << "Connection: " << "keep-alive" << "\r\n";
+    }
+    else if ((reqHeaders.find("connection") != reqHeaders.end()) && (reqHeaders["connection"] == "keep-alive"))
+    {
+        if (_currentKeepAliveNum < MAX_KEEP_ALIVE_NUM)
+        {
+            sstream << "Connection: " << "keep-alive" << "\r\n";
+            _currentKeepAliveNum++;
+            httpMsg->isKeepingAlive = true;
+        }
+        else
+        {
+            sstream << "Connection: " << "close" << "\r\n";
+        }
+    }
     if (!webDir.header.empty())
     {
         sstream << webDir.header;
@@ -263,6 +272,10 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
     }
 
     fclose(file);
+    if (httpMsg->isKeepingAlive)
+    {
+        httpMsg->lastKeepAliveTime = getSysTickCountInMilliseconds();
+    }
     return true;
 }
 
@@ -460,7 +473,20 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
                 cbApiData.findStaticFileFlag = true;
             }
         }
-        shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData);
+        shared_ptr<HttpReqMsg> httpMsg = nullptr;
+        // if keep-alive fd, erase last http msg
+        if (_workingMsgMap.find(fd) != _workingMsgMap.end())
+        {
+            releaseHttpReqMsg(_workingMsgMap[fd]);
+            _workingMsgMap.erase(fd);
+            httpMsg = parseHttpMsg(conn, httpCbData);
+            httpMsg->isKeepingAlive = true;
+            _workingMsgMap[fd] = httpMsg;
+        }
+        else
+        {
+            httpMsg = parseHttpMsg(conn, httpCbData);
+        }
         _workingMsgMap[fd] = httpMsg;
         _threadPool->concurrentRun(&WHttpServer::handleHttpMsg, this, std::ref(_workingMsgMap[fd]), cbApiData);
     }
@@ -500,7 +526,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         }
 
         conn->label[CLIENT_CLOSE_BIT] = 1;
-        while(conn->label[RECV_CLIENT_CLOSE_BIT] == 0)
+        while(conn->label[IN_HANDLE_BIT] == 1)
         {
             usleep(1);
         }
@@ -545,11 +571,19 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
         httpCbData.httpCbFun(httpMsg);
     }
 
-    closeHttpConnection(httpMsg->httpConnection);
+    if (httpMsg->isKeepingAlive)
+    {
+        httpMsg->httpConnection->label[IN_HANDLE_BIT] = 0;
+    }
+    else
+    {
+        closeHttpConnection(httpMsg->httpConnection);
+    }
 }
 
 void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData chunkHttpCbData)
 {
+    httpMsg->httpConnection->label[IN_HANDLE_BIT] = 1;
     if (_httpFilterFun && !_httpFilterFun(httpMsg))
     {
         closeHttpConnection(httpMsg->httpConnection);
@@ -568,11 +602,28 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiDat
 
 void WHttpServer::sendHttpMsgPoll()
 {
+    static int64_t pollCount = 0;
+    pollCount++;
+    int64_t currentTime = -1;
+    if (pollCount % 500 == 0)
+    {
+        currentTime = getSysTickCountInMilliseconds();
+    }
     std::map<int64_t, shared_ptr<HttpReqMsg>>::iterator it;
     for (it = _workingMsgMap.begin(); it != _workingMsgMap.end(); it++)
     {
         shared_ptr<HttpReqMsg> httpMsg = it->second;
         mg_connection *conn = httpMsg->httpConnection;
+
+        // identify if keep-alive timeout
+        if (httpMsg->isKeepingAlive && (currentTime != -1) && (conn->label[IN_HANDLE_BIT] == 0))
+        {
+            if ((currentTime - httpMsg->lastKeepAliveTime > KEEP_ALIVE_TIME * 1000))
+            {
+                conn->label[NORMAL_CLOSE_BIT] = 1;
+                _currentKeepAliveNum--;
+            }
+        }
 
         if (conn->label[NORMAL_CLOSE_BIT] == 1 && httpMsg->sendQueue->size() == 0)
         {
@@ -679,6 +730,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     shared_ptr<HttpReqMsg> res = shared_ptr<HttpReqMsg>(new HttpReqMsg());
     res->httpConnection = conn;
     conn->label[VALID_CONNECT_BIT] = 1;
+    conn->label[IN_HANDLE_BIT] = 1;
     res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
 
     if (httpCbData->message.len < 1024)

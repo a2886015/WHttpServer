@@ -722,10 +722,10 @@ struct mg_mgr {
 #endif
 };
 
-#define NORMAL_CLOSE_BIT 20
-#define CLIENT_CLOSE_BIT 21
-#define RECV_CLIENT_CLOSE_BIT 22
-#define VALID_CONNECT_BIT 23
+#define NORMAL_CLOSE_BIT 40
+#define CLIENT_CLOSE_BIT 41
+#define IN_HANDLE_BIT 42
+#define VALID_CONNECT_BIT 43
 
 struct mg_connection {
   struct mg_connection *next;  // Linkage in struct mg_mgr :: connections
