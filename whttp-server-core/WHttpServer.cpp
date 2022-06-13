@@ -92,9 +92,10 @@ bool WHttpServer::stop()
 
     _httpPort = -1;
     _httpsPort = -1;
-    usleep(100*1000); // make sure run() can not can mg_mgr_poll
+    usleep(100*1000); // make sure run() can not call mg_mgr_poll
 
     mg_mgr_free(&_mgr);
+    reset();
     return true;
 }
 
@@ -353,6 +354,11 @@ void WHttpServer::parseRangeStr(string rangeStr, int64_t &startByte, int64_t &en
     {
         endByte = stoll(rangeStr.substr(lineMarkIndex + 1));
     }
+}
+
+void WHttpServer::reset()
+{
+    _currentKeepAliveNum = 0;
 }
 
 void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)
