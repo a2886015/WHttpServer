@@ -16,7 +16,7 @@
 
 #define MAX_KEEP_ALIVE_NUM 100
 #define KEEP_ALIVE_TIME 5 // 5s
-#define MAX_DOWNLOAD_PAUSE_TIME 20 // 20s
+#define MAX_DOWNLOAD_PAUSE_TIME 60 // 60s
 
 class WHttpServer;
 struct HttpCbMsg
