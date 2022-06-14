@@ -141,24 +141,21 @@ void WHttpServer::setHttpFilter(HttpFilterFun filter)
 void WHttpServer::forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg)
 {
     mg_connection *conn = httpMsg->httpConnection;
-    conn->label[IN_HANDLE_BIT] = 0;
-    conn->label[NORMAL_CLOSE_BIT] = 1;
     conn->is_closing = 1;
 }
 
 void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool isDirectClose)
 {
-    if (conn->label[NORMAL_CLOSE_BIT] == 1)
+    if (conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE)
     {
         return;
     }
 
-    conn->label[IN_HANDLE_BIT] = 0;
-    conn->label[NORMAL_CLOSE_BIT] = 1;
     if (isDirectClose)
     {
         conn->is_draining = 1;
     }
+    conn->label[W_FD_STATUS_BIT] = HTTP_NORMAL_CLOSE;
 }
 
 std::set<string> WHttpServer::getSupportMethods(int httpMethods)
@@ -302,7 +299,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
         {
             currentMs = getSysTickCountInMilliseconds();
-            if (currentMs - lastWriteMs > 20 * 1000)
+            if (currentMs - lastWriteMs > MAX_DOWNLOAD_PAUSE_TIME * 1000)
             {
                 Logi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
                 forceCloseHttpConnection(httpMsg);
@@ -405,7 +402,7 @@ string WHttpServer::formJsonBody(int code, string message)
 
 bool WHttpServer::isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg)
 {
-    return (httpMsg->httpConnection->label[CLIENT_CLOSE_BIT] == 1);
+    return (httpMsg->httpConnection->label[W_CLIENT_CLOSE_BIT] == 1);
 }
 
 shared_ptr<string> WHttpServer::deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg)
@@ -519,20 +516,20 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     else if (msgType == MG_EV_CLOSE)
     {
         Logi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
-        if (conn->label[VALID_CONNECT_BIT] != 1)
+        if (conn->label[W_VALID_CONNECT_BIT] != 1)
         {
             return;
         }
 
-        if (conn->label[NORMAL_CLOSE_BIT] == 1)
+        if (conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE)
         {
             releaseHttpReqMsg(_workingMsgMap[fd]);
             _workingMsgMap.erase(fd);
             return;
         }
 
-        conn->label[CLIENT_CLOSE_BIT] = 1;
-        while(conn->label[IN_HANDLE_BIT] == 1)
+        conn->label[W_CLIENT_CLOSE_BIT] = 1;
+        while(conn->label[W_FD_STATUS_BIT] == HTTP_IN_USE)
         {
             usleep(1);
         }
@@ -579,7 +576,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
 
     if (httpMsg->isKeepingAlive)
     {
-        httpMsg->httpConnection->label[IN_HANDLE_BIT] = 0;
+        httpMsg->httpConnection->label[W_FD_STATUS_BIT] = HTTP_NOT_USE;
     }
     else
     {
@@ -589,7 +586,6 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
 
 void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData chunkHttpCbData)
 {
-    httpMsg->httpConnection->label[IN_HANDLE_BIT] = 1;
     if (_httpFilterFun && !_httpFilterFun(httpMsg))
     {
         closeHttpConnection(httpMsg->httpConnection);
@@ -611,7 +607,7 @@ void WHttpServer::sendHttpMsgPoll()
     static int64_t pollCount = 0;
     pollCount++;
     int64_t currentTime = -1;
-    if (pollCount % 500 == 0)
+    if (pollCount % 1000 == 0)
     {
         currentTime = getSysTickCountInMilliseconds();
     }
@@ -622,16 +618,16 @@ void WHttpServer::sendHttpMsgPoll()
         mg_connection *conn = httpMsg->httpConnection;
 
         // identify if keep-alive timeout
-        if (httpMsg->isKeepingAlive && (currentTime != -1) && (conn->label[IN_HANDLE_BIT] == 0))
+        if (httpMsg->isKeepingAlive && (currentTime != -1) && (conn->label[W_FD_STATUS_BIT] == HTTP_NOT_USE))
         {
             if ((currentTime - httpMsg->lastKeepAliveTime > KEEP_ALIVE_TIME * 1000))
             {
-                conn->label[NORMAL_CLOSE_BIT] = 1;
+                conn->label[W_FD_STATUS_BIT] = HTTP_NORMAL_CLOSE;
                 _currentKeepAliveNum--;
             }
         }
 
-        if (conn->label[NORMAL_CLOSE_BIT] == 1 && httpMsg->sendQueue->size() == 0)
+        if ((conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE) && (httpMsg->sendQueue->size() == 0))
         {
             conn->is_draining = 1;
             continue;
@@ -735,8 +731,8 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
 {
     shared_ptr<HttpReqMsg> res = shared_ptr<HttpReqMsg>(new HttpReqMsg());
     res->httpConnection = conn;
-    conn->label[VALID_CONNECT_BIT] = 1;
-    conn->label[IN_HANDLE_BIT] = 1;
+    conn->label[W_VALID_CONNECT_BIT] = 1;
+    conn->label[W_FD_STATUS_BIT] = HTTP_IN_USE;
     res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
 
     if (httpCbData->message.len < 1024)

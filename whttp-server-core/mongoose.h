@@ -722,10 +722,14 @@ struct mg_mgr {
 #endif
 };
 
-#define NORMAL_CLOSE_BIT 40
-#define CLIENT_CLOSE_BIT 41
-#define IN_HANDLE_BIT 42
-#define VALID_CONNECT_BIT 43
+#define W_FD_STATUS_BIT 40
+#define W_CLIENT_CLOSE_BIT 41
+#define W_VALID_CONNECT_BIT 43
+
+// W_FD_STATUS_BIT value define
+#define HTTP_IN_USE  1
+#define HTTP_NOT_USE 2
+#define HTTP_NORMAL_CLOSE 3
 
 struct mg_connection {
   struct mg_connection *next;  // Linkage in struct mg_mgr :: connections

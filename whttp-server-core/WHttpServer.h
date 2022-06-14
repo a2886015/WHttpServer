@@ -16,6 +16,7 @@
 
 #define MAX_KEEP_ALIVE_NUM 100
 #define KEEP_ALIVE_TIME 5 // 5s
+#define MAX_DOWNLOAD_PAUSE_TIME 20 // 20s
 
 class WHttpServer;
 struct HttpCbMsg
@@ -97,6 +98,7 @@ private:
     void readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentLength,
                            int64_t startByte);
     void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);
+    void reset();
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     static uint64_t getSysTickCountInMilliseconds();

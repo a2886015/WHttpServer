@@ -2938,7 +2938,7 @@ static void read_conn(struct mg_connection *c) {
 
 void w_sync_mg_send(struct mg_connection *c, const char* data, int len)
 {
-  if (c->label[CLIENT_CLOSE_BIT] == 1)
+  if (c->label[W_CLIENT_CLOSE_BIT] == 1)
   {
     return;
   }
