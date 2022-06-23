@@ -201,8 +201,8 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
     {
-        Logw("WHttpServer::handleStaticWebDir can not open file:%s", filePath.c_str());
-        httpReplyJson(httpMsg, 500, "", formJsonBody(101, "can not find this file"));
+        // Logw("WHttpServer::handleStaticWebDir can not open file:%s", filePath.c_str());
+        // httpReplyJson(httpMsg, 500, "", formJsonBody(101, "can not find this file"));
         return false;
     }
 
@@ -462,6 +462,12 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             return;
         }
+        if (httpCbData->head.len > HTTP_MAX_HEAD_SIZE)
+        {
+            mg_http_reply(conn, 500, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
+            closeHttpConnection(conn, true);
+            return;
+        }
         HttpApiData cbApiData;
         if (!findHttpCbFun(httpCbData, cbApiData))
         {
@@ -499,6 +505,12 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         HttpApiData chunkCbApiData;
         if (!findChunkHttpCbFun(httpCbData, chunkCbApiData))
         {
+            return;
+        }
+        if (httpCbData->head.len > HTTP_MAX_HEAD_SIZE)
+        {
+            mg_http_reply(conn, 500, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
+            closeHttpConnection(conn, true);
             return;
         }
         if (_workingMsgMap.find(fd) == _workingMsgMap.end())
