@@ -209,9 +209,63 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
     struct stat statbuf;
     stat(filePath.c_str(), &statbuf);
     int64_t fileSize = statbuf.st_size;
-
     stringstream sstream;
-    sstream << "HTTP/1.1 200 OK\r\n";
+
+    if (httpMsg->method == "HEAD")
+    {
+        formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 200);
+        sstream << "Content-Length: " << fileSize << "\r\n";
+        sstream << "\r\n"; // 空行表示http头部完成
+        addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+    }
+    else
+    {
+        if (httpMsg->headers.find("range") != httpMsg->headers.end())
+        {
+            string rangeStr = httpMsg->headers["range"];
+            int64_t startByte = 0, endByte = 0;
+            parseRangeStr(rangeStr, startByte, endByte, fileSize);
+            startByte = startByte < 0 ? 0 : startByte;
+            endByte = (endByte > fileSize - 1) ? (fileSize - 1) : endByte;
+            int64_t contentLength = endByte - startByte + 1;
+            contentLength = contentLength < 0 ? 0 : contentLength;
+            if (contentLength < fileSize)
+            {
+                formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 206);
+            }
+            else
+            {
+                formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 200);
+            }
+            sstream << "Content-Range: bytes " << startByte << "-" << endByte << "/" << fileSize << "\r\n";
+            sstream << "Accept-Ranges: bytes\r\n";
+            sstream << "Content-Length: " << contentLength << "\r\n";
+            sstream << "\r\n";
+            addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+            readStaticWebFile(httpMsg, file, contentLength, startByte);
+        }
+        else
+        {
+            formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 200);
+            sstream << "Content-Length: " << fileSize << "\r\n";
+            sstream << "\r\n";
+            addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+            readStaticWebFile(httpMsg, file, fileSize, 0);
+        }
+    }
+
+    fclose(file);
+    if (httpMsg->isKeepingAlive)
+    {
+        httpMsg->lastKeepAliveTime = getSysTickCountInMilliseconds();
+    }
+    return true;
+}
+
+void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, HttpStaticWebDir &webDir,
+                                string &filePath, int code)
+{
+    sstream << "HTTP/1.1 "<< code << " " << mg_http_status_code_str(code) << "\r\n";
     sstream << "Content-Type: " << guess_content_type(filePath.c_str()) << "\r\n";
     map<string, string> &reqHeaders = httpMsg->headers;
     if (httpMsg->isKeepingAlive)
@@ -236,45 +290,6 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
         sstream << webDir.header;
     }
     // sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
-    if (httpMsg->method == "HEAD")
-    {
-        sstream << "Content-Length: " << fileSize << "\r\n";
-        sstream << "\r\n"; // 空行表示http头部完成
-        addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
-    }
-    else
-    {
-        if (httpMsg->headers.find("range") != httpMsg->headers.end())
-        {
-            string rangeStr = httpMsg->headers["range"];
-            int64_t startByte = 0, endByte = 0;
-            parseRangeStr(rangeStr, startByte, endByte, fileSize);
-            startByte = startByte < 0 ? 0 : startByte;
-            endByte = (endByte > fileSize - 1) ? (fileSize - 1) : endByte;
-            int64_t contentLength = endByte - startByte + 1;
-            contentLength = contentLength < 0 ? 0 : contentLength;
-            sstream << "Content-Range: bytes " << startByte << "-" << endByte << "/" << fileSize << "\r\n";
-            sstream << "Accept-Ranges: bytes\r\n";
-            sstream << "Content-Length: " << contentLength << "\r\n";
-            sstream << "\r\n";
-            addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
-            readStaticWebFile(httpMsg, file, contentLength, startByte);
-        }
-        else
-        {
-            sstream << "Content-Length: " << fileSize << "\r\n";
-            sstream << "\r\n";
-            addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
-            readStaticWebFile(httpMsg, file, fileSize, 0);
-        }
-    }
-
-    fclose(file);
-    if (httpMsg->isKeepingAlive)
-    {
-        httpMsg->lastKeepAliveTime = getSysTickCountInMilliseconds();
-    }
-    return true;
 }
 
 void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentSize, int64_t startByte)
@@ -475,7 +490,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0))
             {
-                mg_http_reply(conn, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+                mg_http_reply(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
                 closeHttpConnection(conn, true);
                 return;
             }
@@ -570,7 +585,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
 
         if (!findFlag)
         {
-            httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+            httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
         }
     }
     else
@@ -583,7 +598,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
         set<string> methods = getSupportMethods(httpCbData.httpMethods);
         if (methods.find(httpMsg->method) == methods.end())
         {
-            httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+            httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
             closeHttpConnection(httpMsg->httpConnection);
             return;
         }
@@ -610,7 +625,7 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiDat
     set<string> methods = getSupportMethods(chunkHttpCbData.httpMethods);
     if (methods.find(httpMsg->method) == methods.end())
     {
-        httpReplyJson(httpMsg, 404, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+        httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
         closeHttpConnection(httpMsg->httpConnection);
         return;
     }

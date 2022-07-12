@@ -97,6 +97,8 @@ private:
     void closeHttpConnection(struct mg_connection *conn, bool isDirectClose = false);
     std::set<string> getSupportMethods(int httpMethods);
     bool handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticWebDir &webDir);
+    void formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, HttpStaticWebDir &webDir,
+                       string &filePath, int code);
     void readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentLength,
                            int64_t startByte);
     void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);

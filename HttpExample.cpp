@@ -225,7 +225,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 
     // 先返回http头部，文件下载数据返回量太大，需要分块返回，使用的是addSendMsgToQueue函数
     stringstream sstream;
-    sstream << "HTTP/1.1 200 OK\r\n";
+    sstream << "HTTP/1.1 200 " << mg_http_status_code_str(200) << "\r\n";
     sstream << "Content-Type: binary/octet-stream\r\n";
     sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
     sstream << "Content-Length: " << fileSize << "\r\n\r\n"; // 空行表示http头部完成
