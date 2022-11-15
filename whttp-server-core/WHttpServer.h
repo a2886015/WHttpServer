@@ -103,6 +103,7 @@ private:
                            int64_t startByte);
     void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);
     void reset();
+    void logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     static uint64_t getSysTickCountInMilliseconds();

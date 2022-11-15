@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 4.13.1, 2022-07-11T18:15:38. -->
+<!-- Written by QtCreator 4.13.1, 2022-11-15T17:32:17. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -363,6 +363,7 @@
     <value type="bool" key="RunConfiguration.UseMultiProcess">false</value>
     <value type="bool" key="RunConfiguration.UseQmlDebugger">false</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>
+    <value type="bool" key="RunConfiguration.UseTerminal">true</value>
     <value type="QString" key="RunConfiguration.WorkingDirectory"></value>
     <value type="QString" key="RunConfiguration.WorkingDirectory.default">/home/wenke/QtProgram/openSource/whttp-server/bin</value>
    </valuemap>

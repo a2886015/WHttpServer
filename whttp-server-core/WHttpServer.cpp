@@ -373,6 +373,20 @@ void WHttpServer::reset()
     _currentKeepAliveNum = 0;
 }
 
+void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData)
+{
+    if (httpCbData->message.len < 1024)
+    {
+        Logi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
+    }
+    else
+    {
+        char msg[1024] = {0};
+        memcpy(msg, httpCbData->message.ptr, 1024);
+        Logi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
+    }
+}
+
 void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)
 {
     stringstream sstream;
@@ -478,6 +492,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             return;
         }
 
+        logHttpRequestMsg(conn, httpCbData);
         if (httpCbData->head.len > HTTP_MAX_HEAD_SIZE)
         {
             mg_http_reply(conn, 500, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
@@ -534,6 +549,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
 
         if (_workingMsgMap.find(fd) == _workingMsgMap.end())
         {
+            logHttpRequestMsg(conn, httpCbData);
             shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData, true);
             _workingMsgMap[fd] = httpMsg;
             _threadPool->concurrentRun(&WHttpServer::handleChunkHttpMsg, this, std::ref(_workingMsgMap[fd]), chunkCbApiData);
@@ -765,17 +781,6 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     conn->label[W_VALID_CONNECT_BIT] = 1;
     conn->label[W_FD_STATUS_BIT] = HTTP_IN_USE;
     res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
-
-    if (httpCbData->message.len < 1024)
-    {
-        Logi("WHttpServer::ParseHttpMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
-    }
-    else
-    {
-        char msg[1024] = {0};
-        memcpy(msg, httpCbData->message.ptr, 1024);
-        Logi("WHttpServer::ParseHttpMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
-    }
 
     res->method.resize(httpCbData->method.len);
     memcpy((char*)res->method.c_str(), httpCbData->method.ptr, httpCbData->method.len);
