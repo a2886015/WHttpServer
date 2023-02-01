@@ -39,7 +39,7 @@
 13. void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)，向客户端返回数据，返回type是json，这是对上面2个函数进一步封装的便捷函数
 14. string formJsonBody(int code, string message)，返回类似{"code":0, "message": "success"}的json字符串
 15. bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg)，返回客户端是否主动断开了连接
-16. shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg)，大文件上传的场景，获取chunk数据块
+16. shared_ptr<<string>> deQueueHttpChunk(shared_ptr<<HttpReqMsg>> httpMsg)，大文件上传的场景，获取chunk数据块
 17. bool addStaticWebDir(const string &dir, const string &header = "")，新增接口，用于形成web容器目录，可部署网页
 18. mg_http_status_code_str(int status_code), mongoose原生接口，返回http status code对应的string信息
 
