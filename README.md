@@ -12,6 +12,7 @@
 
 #### 接口说明
 
+```
 1. bool init(int maxEventThreadNum)，初始化线程池，指定线程池最大线程数
 2. bool startHttp(int port)，开启http服务
 3. bool startHttps(int port, string certPath, string keyPath)，开启https服务
@@ -39,18 +40,20 @@
 13. void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)，向客户端返回数据，返回type是json，这是对上面2个函数进一步封装的便捷函数
 14. string formJsonBody(int code, string message)，返回类似{"code":0, "message": "success"}的json字符串
 15. bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg)，返回客户端是否主动断开了连接
-16. shared_ptr<<string>> deQueueHttpChunk(shared_ptr<<HttpReqMsg>> httpMsg)，大文件上传的场景，获取chunk数据块
+16. shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg)，大文件上传的场景，获取chunk数据块
 17. bool addStaticWebDir(const string &dir, const string &header = "")，新增接口，用于形成web容器目录，可部署网页
 18. mg_http_status_code_str(int status_code), mongoose原生接口，返回http status code对应的string信息
+```
+
 
 
 #### 重要数据类型
 
+```
 1. using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>，http接口的回调函数
 2. using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>，http接口的过滤函数
 3. HttpReqMsg结构体
 
-```
  struct HttpReqMsg
 {
    mg_connection *httpConnection = nullptr; // mongoose里面代表一个socket连接的结果体，外层不关心
@@ -67,7 +70,6 @@
    bool finishRecvChunk = false; // 大文件上传时，判断是否所有数据都上传完成了
 };
 ```
-
 
 #### 注意事项
 1、所有http回调函数都是在子线程里面运行的，即使同一个回调函数，每次运行也不一定在一个线程，注意线程安全
