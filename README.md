@@ -21,16 +21,12 @@
 6. bool isRunning()，查看服务是否还在运行中
 7. void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods)，添加普通的http回调接口，其中httpMethods以数据的不同位置位代表不同的http方法，具体如下：
 
-
-```
          #define W_HTTP_GET      (1 << 0)
          #define W_HTTP_POST     (1 << 1)
          #define W_HTTP_PUT      (1 << 2)
          #define W_HTTP_DELETE   (1 << 3)
          #define W_HTTP_HEAD     (1 << 4)
          #define W_HTTP_ALL       0xFF
-```
-
 
 8. void addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods)，添加数据块http回调接口，当客户端的http请求数据可能超过3M时，采用这个函数添加接口，典型的场景如文件上传
 9. void setHttpFilter(HttpFilterFun filter)，设置http接口的过滤函数，若过滤函数filter返回false，则不会进入回调，用于需要如登录信息才会响应的接口
