@@ -35,6 +35,9 @@ void HttpExample::start()
 
     HttpCbFun downloadFileCbFun = std::bind(&HttpExample::handleHttpDownloadFile, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/downloadFile/", downloadFileCbFun, W_HTTP_GET | W_HTTP_HEAD);
+
+    HttpCbFun chunkDownloadFileCbFun = std::bind(&HttpExample::handleHttpChunkDownloadFile, this, std::placeholders::_1);
+    _httpServer->addHttpApi("/whttpserver/chunkDownloadFile/", chunkDownloadFileCbFun, W_HTTP_GET);
 }
 
 /*
@@ -206,6 +209,13 @@ bool HttpExample::parseMultipartStream(string &parseBuf, string &extraDataBuf, s
     return true;
 }
 
+string HttpExample::intToHexStr(int num)
+{
+    char data[50] = {0};
+    sprintf(data, "%X", num); // x是小写，X是大写
+    return data;
+}
+
 void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 {
     string fileName = httpMsg->uri.substr(strlen("/whttpserver/downloadFile/"));
@@ -281,6 +291,89 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 
     fclose(file);
 
+}
+
+void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
+{
+    string fileName = httpMsg->uri.substr(strlen("/whttpserver/chunkDownloadFile/"));
+    string filePath = "/data/" + fileName;
+
+    FILE *file = fopen(filePath.c_str(), "r");
+    if (!file)
+    {
+        Logw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
+        _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(101, "can not open file"));
+        return;
+    }
+
+    struct stat statbuf;
+    stat(filePath.c_str(), &statbuf);
+    int64_t fileSize = statbuf.st_size;
+
+    // 先返回http头部，文件下载数据返回量太大，需要分块返回，使用的是addSendMsgToQueue函数
+    stringstream sstream;
+    sstream << "HTTP/1.1 200 " << mg_http_status_code_str(200) << "\r\n";
+    sstream << "Content-Type: " << guess_content_type(fileName.c_str()) << "\r\n";
+    sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
+    sstream << "Transfer-Encoding: chunked" << "\r\n"; // chunk下载头部需要添加这个字段，没有Content-Length
+    sstream << "\r\n"; // 空行表示http头部完成
+    _httpServer->addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+
+    int64_t currentReadSize = 0;
+    int64_t maxPerReadSize = 1024*1024;
+    int64_t perReadSize = fileSize > maxPerReadSize ? maxPerReadSize : fileSize;
+    int64_t remainSize;
+
+    while((remainSize = fileSize - currentReadSize) > 0 && _httpServer->isRunning())
+    {
+        if (_httpServer->isClientDisconnect(httpMsg))
+        {
+            Logw("handleHttpDownloadFile http client close the connection actively");
+            break;
+        }
+
+        // 为了防止发送队列里的数据太大，占用大量内存，当发送队列里面的数据达到一定量，先等待
+        if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
+        {
+            usleep(1000);
+            continue;
+        }
+
+        string *fileStr = new string();
+        fileStr->resize(perReadSize);
+
+        int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
+        int64_t readSize = fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
+        std::cout << "currentReadSize is:" << currentReadSize << ", readSize is: " << readSize << endl;
+        currentReadSize += readSize;
+        if (readSize == 0)
+        {
+            Logw("handleHttpDownloadFile read size is 0");
+            delete fileStr;
+            break;
+        }
+
+        if (readSize != perReadSize)
+        {
+            fileStr->resize(readSize);
+        }
+
+        sstream.clear();
+        sstream.str("");
+        sstream << intToHexStr(readSize) << "\r\n";
+        sstream << (*fileStr) << "\r\n";
+        // 再发送具体的文件数据给客户端
+        _httpServer->addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+        delete fileStr;
+    }
+
+    sstream.clear();
+    sstream.str("");
+    sstream << 0 << "\r\n";
+    sstream << "\r\n";
+    _httpServer->addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+
+    fclose(file);
 }
 
 void HttpExample::run()

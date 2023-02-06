@@ -18,11 +18,13 @@ public:
     void handleHttpRequestTest(shared_ptr<HttpReqMsg> &httpMsg);
     void handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg);
     void handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg);
+    void handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg);
     void run();
 private:
     WHttpServer *_httpServer = nullptr;
 
     bool parseMultipartStream(string &parseBuf, string &extraDataBuf, std::map<string, FILE *> &fileWriterMap,
                               std::map<string, string> &formParamsMap, string &filePathPrefix, string &errMsg);
+    static string intToHexStr(int num);
 };
 
