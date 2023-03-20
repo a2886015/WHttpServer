@@ -25,6 +25,19 @@ using namespace std;
 using HttpChunkQueue = LockQueue<string *>;
 using HttpSendQueue = LockQueue<string *>;
 
+#ifdef WIN32
+    #define strcasecmp _stricmp
+    #define strncasecmp _strnicmp
+#endif
+
+struct WCaseCompare
+{
+    bool operator() (const std::string& lhs, const std::string& rhs) const
+    {
+        return strcasecmp(lhs.c_str(), rhs.c_str()) < 0;
+    }
+};
+
 struct HttpReqMsg
 {
    mg_connection *httpConnection = nullptr;
@@ -32,8 +45,8 @@ struct HttpReqMsg
    string uri;
    map<string, string> querys; // the params in uri
    string proto; // http version
-   // the params in header, all key letters are converted to lowercase, eg "Content-Length" change to "content-length"
-   map<string, string> headers;
+   // the params in header, all key letters is no case-sensitive, eg "Content-Length" and "content-length" do same
+   map<string, string, WCaseCompare> headers;
    string body;
    int64_t totalBodySize;
    shared_ptr<HttpChunkQueue> chunkQueue;

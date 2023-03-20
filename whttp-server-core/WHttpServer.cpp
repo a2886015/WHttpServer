@@ -267,7 +267,7 @@ void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<Ht
 {
     sstream << "HTTP/1.1 "<< code << " " << mg_http_status_code_str(code) << "\r\n";
     sstream << "Content-Type: " << guess_content_type(filePath.c_str()) << "\r\n";
-    map<string, string> &reqHeaders = httpMsg->headers;
+    map<string, string, WCaseCompare> &reqHeaders = httpMsg->headers;
     if (httpMsg->isKeepingAlive)
     {
         sstream << "Connection: " << "keep-alive" << "\r\n";
@@ -834,7 +834,6 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
         value.resize(httpCbData->headers[i].value.len);
         memcpy((char*)name.c_str(), httpCbData->headers[i].name.ptr, httpCbData->headers[i].name.len);
         memcpy((char*)value.c_str(), httpCbData->headers[i].value.ptr, httpCbData->headers[i].value.len);
-        toLowerString(name);
         res->headers[name] = value;
         // std::cout << "show headers, " << name << ": " << value << endl;
     }
