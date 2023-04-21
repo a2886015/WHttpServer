@@ -1,4 +1,4 @@
-# WHttpServer (w_http_server)
+# WHttpServer
 
 #### 介绍
 基于mongoose 7.3版本的源码，修改源码及二次封装，引入线程池编写的http服务，同时支持https。
@@ -57,7 +57,7 @@
    string uri; 
    map<string, string> querys; // the params in uri
    string proto; // http version
-   map<string, string> headers; // http头部字段，其中key都被转为了小写，比如"Content-Length" 转为了 "content-length"
+   map<string, string, WCaseCompare> headers; // http头部字段，其中key是大小写不敏感的，比如"Content-Length" 和 "content-length"是一个效果
    string body; // http body体数据
    int64_t totalBodySize; // http body体数据大小，就是头部"content-length"值
    shared_ptr<HttpChunkQueue> chunkQueue; // 大文件上传时，存储文件的数据块
