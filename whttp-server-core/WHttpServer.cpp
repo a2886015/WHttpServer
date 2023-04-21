@@ -191,6 +191,11 @@ std::set<string> WHttpServer::getSupportMethods(int httpMethods)
         methodsSet.insert("HEAD");
     }
 
+    if (httpMethods & W_HTTP_OPTIONS)
+    {
+        methodsSet.insert("OPTIONS");
+    }
+
     return methodsSet;
 }
 
@@ -215,6 +220,12 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
     {
         formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 200);
         sstream << "Content-Length: " << fileSize << "\r\n";
+        sstream << "\r\n"; // 空行表示http头部完成
+        addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
+    }
+    else if (httpMsg->method == "OPTIONS")
+    {
+        formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 204);
         sstream << "\r\n"; // 空行表示http头部完成
         addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
     }
@@ -503,7 +514,8 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         HttpApiData cbApiData;
         if (!findHttpCbFun(httpCbData, cbApiData))
         {
-            if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0))
+            if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0)
+                 && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
             {
                 mg_http_reply(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
                 closeHttpConnection(conn, true);
