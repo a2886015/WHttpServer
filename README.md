@@ -26,6 +26,7 @@
          #define W_HTTP_PUT      (1 << 2)
          #define W_HTTP_DELETE   (1 << 3)
          #define W_HTTP_HEAD     (1 << 4)
+         #define W_HTTP_OPTIONS  (1 << 5)
          #define W_HTTP_ALL       0xFF
 
 8. void addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods)，添加数据块http回调接口，当客户端的http请求数据可能超过3M时，采用这个函数添加接口，典型的场景如文件上传
