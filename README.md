@@ -5,6 +5,7 @@
 使用示例可以查看HttpExample.cpp、HttpExample.h和main.cpp三个文件，里面分别举例了http普通接口、大文件上传、大文件下载、chunk流文件下载4个典型场景。
 
 操作系统：Linux
+在mac下也可以运行，但是需要自己修改CMakeLists.txt文件设配好openssl的库；windows下理论上也可以，但是我目前没有windows电脑使用，暂时没有验证
 
 #### 安装教程
 
@@ -71,7 +72,7 @@
 #### 注意事项
 1、所有http回调函数都是在子线程里面运行的，即使同一个回调函数，每次运行也不一定在一个线程，注意线程安全
 
-2、为了保证更好的性能，发动机函数run里面没有加锁，不是线程安全的，所以初始化之类的函数，如init、startHttp、addHttpApi之类的函数的调用需要在启动run函数之前运行，或者其和run函数在一个线程。
+2、为了保证更好的性能，发动机函数run里面没有加锁，不是线程安全的，所以初始化之类的函数，如init、startHttp、addHttpApi之类的函数的调用需要在启动run函数之前运行。
 
 3、addHttpApi和addChunkHttpApi函数给uri时，不要给可能重复匹配的uri，否则只有1个生效。比如给“/test”和”/test/dotest“这样的，因为当uri是”/test/dotest“时，“/test”也是可以匹配成功，我认为这种情况属于uri没有设计好，不想像node.js一样提供next函数处理这种情况。若你uri直接给‘/’，那么估计所有的回调全都会进‘/’的回调函数中
 
