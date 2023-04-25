@@ -4,8 +4,7 @@
 基于mongoose 7.3版本的源码，修改源码及二次封装，引入线程池编写的http服务，同时支持https。
 使用示例可以查看HttpExample.cpp、HttpExample.h和main.cpp三个文件，里面分别举例了http普通接口、大文件上传、大文件下载、chunk流文件下载4个典型场景。
 
-操作系统：Linux
-在mac下也可以运行，但是需要自己修改CMakeLists.txt文件设配好openssl的库；windows下理论上也可以，但是我目前没有windows电脑使用，暂时没有验证
+操作系统：Linux。在mac下也可以运行，但是需要自己修改CMakeLists.txt文件设配好openssl的库；windows下理论上也可以，但是我目前没有windows电脑使用，暂时没有验证
 
 #### 安装教程
 
