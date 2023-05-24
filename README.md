@@ -14,8 +14,7 @@ windows下理论上也可以，但是我目前没有windows电脑使用，暂时
 
 #### 接口说明
 
-```
-1. bool init(int maxEventThreadNum)，初始化线程池，指定线程池最大线程数
+- 1. bool init(int maxEventThreadNum)，初始化线程池，指定线程池最大线程数
 2. bool startHttp(int port)，开启http服务
 3. bool startHttps(int port, string certPath, string keyPath)，开启https服务
 4. bool stop()，停止http和https服务，在析构函数函数里面已经调用
@@ -42,7 +41,6 @@ windows下理论上也可以，但是我目前没有windows电脑使用，暂时
 16. shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg)，大文件上传的场景，获取chunk数据块
 17. bool addStaticWebDir(const string &dir, const string &header = "")，新增接口，用于形成web容器目录，可部署网页
 18. mg_http_status_code_str(int status_code), mongoose原生接口，返回http status code对应的string信息
-```
 
 
 
