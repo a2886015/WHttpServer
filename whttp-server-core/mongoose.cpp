@@ -3117,7 +3117,6 @@ static void accept_conn(struct mg_mgr *mgr, struct mg_connection *lsn) {
   SOCKET fd = accept(FD(lsn), &usa.sa, &sa_len);
   if (fd == INVALID_SOCKET) {
     LOG(LL_ERROR, ("%lu accept failed, errno %d", lsn->id, MG_SOCK_ERRNO));
-/*
 #if (!defined(_WIN32) && (MG_ARCH != MG_ARCH_FREERTOS_TCP) && !defined(USE_EPOLL))
   } else if ((long) fd >= FD_SETSIZE) {
     LOG(LL_ERROR, ("%ld > %ld", (long) fd, (long) FD_SETSIZE));
@@ -3127,7 +3126,6 @@ static void accept_conn(struct mg_mgr *mgr, struct mg_connection *lsn) {
     LOG(LL_ERROR, ("%ld > %ld", (long) fd, (long) EPOLL_MAX_FD_NUM));
     closesocket(fd);
 #endif
-*/
   } else if ((c = alloc_conn(mgr, 0, fd)) == NULL) {
     LOG(LL_ERROR, ("%lu OOM", lsn->id));
     closesocket(fd);
@@ -3223,38 +3221,6 @@ struct mg_connection *mg_listen(struct mg_mgr *mgr, const char *url,
   return c;
 }
 
-#ifdef USE_EPOLL
-static bool epoll_fd_readable(struct epoll_event evtList[], int rc, int fd)
-{
-   int res = false;
-   for (int i = 0; i < rc; ++i)
-   {
-       if ((evtList[i].events & EPOLLIN) && evtList[i].data.fd == fd)
-       {
-            res = true;
-            break;
-       }
-   }
-
-   return res;
-}
-
-static bool epoll_fd_writable(struct epoll_event evtList[], int rc, int fd)
-{
-    int res = false;
-    for (int i = 0; i < rc; ++i)
-    {
-        if ((evtList[i].events & EPOLLOUT) && evtList[i].data.fd == fd)
-        {
-             res = true;
-             break;
-        }
-    }
-
-    return res;
-}
-#endif
-
 static void mg_iotest(struct mg_mgr *mgr, int ms) {
 #if MG_ARCH == MG_ARCH_FREERTOS_TCP
   struct mg_connection *c;
@@ -3277,32 +3243,34 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   int rc;
   int efd = -1;
   struct epoll_event evtList[EPOLL_MAX_FD_NUM];
-  long int fdNum = 0;
 
   efd = epoll_create(EPOLL_MAX_FD_NUM);
 
   for (c = mgr->conns; c != NULL; c = c->next)
   {
-    if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET)
-    {
-        continue;
-    }
+      if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET)
+      {
+          continue;
+      }
 
-    fdNum++;
-    if (fdNum > EPOLL_MAX_FD_NUM)
-    {
-        LOG(LL_ERROR, ("epoll fd beyond max"));
-        break;
-    }
+      c->is_writable = 0;
+      if (c->is_tls && c->is_readable)
+      {
+          c->is_readable = 1;
+      }
+      else
+      {
+          c->is_readable = 0;
+      }
 
-    struct epoll_event event;
-    event.data.fd = FD(c);
-    event.events = EPOLLIN | EPOLLET;
-    if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0))
-    {
-        event.events = EPOLLIN | EPOLLOUT | EPOLLET;
-    }
-    epoll_ctl(efd, EPOLL_CTL_ADD, FD(c), &event);
+      struct epoll_event event;
+      event.data.ptr = (void *)c;
+      event.events = EPOLLIN | EPOLLET;
+      if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0))
+      {
+          event.events = EPOLLIN | EPOLLOUT | EPOLLET;
+      }
+      epoll_ctl(efd, EPOLL_CTL_ADD, FD(c), &event);
   }
 
   if ((rc = epoll_wait(efd, evtList, EPOLL_MAX_FD_NUM, ms)) < 0)
@@ -3310,13 +3278,18 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
       LOG(LL_DEBUG, ("epoll: %d %d", rc, MG_SOCK_ERRNO));
   }
 
-  for (c = mgr->conns; c != NULL; c = c->next)
+  for(int i = 0; i < rc; ++i)
   {
-    // TLS might have stuff buffered, so dig everything
-    c->is_readable = c->is_tls && c->is_readable
-                         ? 1
-                         : FD(c) != INVALID_SOCKET && epoll_fd_readable(evtList, rc, FD(c));
-    c->is_writable = FD(c) != INVALID_SOCKET && epoll_fd_writable(evtList, rc, FD(c));
+      c = (struct mg_connection *)evtList[i].data.ptr;
+      if (evtList[i].events & EPOLLIN)
+      {
+          c->is_readable = 1;
+      }
+
+      if (evtList[i].events & EPOLLOUT)
+      {
+          c->is_writable = 1;
+      }
   }
 
   close(efd);
@@ -3326,7 +3299,6 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   fd_set rset, wset;
   SOCKET maxfd = 0;
   int rc;
-  long int fdNum = 0;
 
   FD_ZERO(&rset);
   FD_ZERO(&wset);
@@ -3336,14 +3308,6 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
     // TLS might have stuff buffered, so dig everything
     // c->is_readable = c->is_tls && c->is_readable ? 1 : 0;
     if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
-
-    fdNum++;
-    if (fdNum > FD_SETSIZE)
-    {
-        LOG(LL_ERROR, ("select fd beyond max"));
-        break;
-    }
-
     FD_SET(FD(c), &rset);
     if (FD(c) > maxfd) maxfd = FD(c);
     if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0))
