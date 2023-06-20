@@ -3117,6 +3117,7 @@ static void accept_conn(struct mg_mgr *mgr, struct mg_connection *lsn) {
   SOCKET fd = accept(FD(lsn), &usa.sa, &sa_len);
   if (fd == INVALID_SOCKET) {
     LOG(LL_ERROR, ("%lu accept failed, errno %d", lsn->id, MG_SOCK_ERRNO));
+/*
 #if (!defined(_WIN32) && (MG_ARCH != MG_ARCH_FREERTOS_TCP) && !defined(USE_EPOLL))
   } else if ((long) fd >= FD_SETSIZE) {
     LOG(LL_ERROR, ("%ld > %ld", (long) fd, (long) FD_SETSIZE));
@@ -3126,6 +3127,7 @@ static void accept_conn(struct mg_mgr *mgr, struct mg_connection *lsn) {
     LOG(LL_ERROR, ("%ld > %ld", (long) fd, (long) EPOLL_MAX_FD_NUM));
     closesocket(fd);
 #endif
+*/
   } else if ((c = alloc_conn(mgr, 0, fd)) == NULL) {
     LOG(LL_ERROR, ("%lu OOM", lsn->id));
     closesocket(fd);
@@ -3275,6 +3277,7 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   int rc;
   int efd = -1;
   struct epoll_event evtList[EPOLL_MAX_FD_NUM];
+  long int fdNum = 0;
 
   efd = epoll_create(EPOLL_MAX_FD_NUM);
 
@@ -3283,6 +3286,13 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
     if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET)
     {
         continue;
+    }
+
+    fdNum++;
+    if (fdNum > EPOLL_MAX_FD_NUM)
+    {
+        LOG(LL_ERROR, ("epoll fd beyond max"));
+        break;
     }
 
     struct epoll_event event;
@@ -3316,6 +3326,7 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   fd_set rset, wset;
   SOCKET maxfd = 0;
   int rc;
+  long int fdNum = 0;
 
   FD_ZERO(&rset);
   FD_ZERO(&wset);
@@ -3325,6 +3336,14 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
     // TLS might have stuff buffered, so dig everything
     // c->is_readable = c->is_tls && c->is_readable ? 1 : 0;
     if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
+
+    fdNum++;
+    if (fdNum > FD_SETSIZE)
+    {
+        LOG(LL_ERROR, ("select fd beyond max"));
+        break;
+    }
+
     FD_SET(FD(c), &rset);
     if (FD(c) > maxfd) maxfd = FD(c);
     if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0))
