@@ -286,6 +286,13 @@ struct timeval {
 #include <time.h>
 #include <unistd.h>
 
+// #define USE_EPOLL
+
+#ifdef USE_EPOLL
+#include <sys/epoll.h>
+#define EPOLL_MAX_FD_NUM 4096
+#endif
+
 #define MG_DIRSEP '/'
 #define MG_ENABLE_POSIX 1
 #define MG_INT64_FMT "%" PRId64
