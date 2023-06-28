@@ -64,7 +64,7 @@ using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>;
 class IHttpServer
 {
 public:
-    IHttpServer(){}
+    IHttpServer(mg_mgr *mgr = nullptr){}
     virtual ~IHttpServer(){}
     virtual bool init(int maxEventThreadNum) = 0;
     virtual bool startHttp(int port) = 0;

@@ -43,7 +43,7 @@ struct HttpStaticWebDir
 class WHttpServer: public IHttpServer
 {
 public:
-    WHttpServer();
+    WHttpServer(mg_mgr *mgr = nullptr);
     virtual ~WHttpServer();
     virtual bool init(int maxEventThreadNum);
     virtual bool startHttp(int port);
@@ -70,7 +70,8 @@ private:
     volatile int _httpPort = -1;
     volatile int _httpsPort = -1;
     std::mutex _httpLocker;
-    struct mg_mgr _mgr;
+    struct mg_mgr *_mgr = nullptr;
+    bool _selfMgrFlag = false;
     string _certPath = "";
     string _keyPath = "";
     HttpCbMsg _httpCbMsg;

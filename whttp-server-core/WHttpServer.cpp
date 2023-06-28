@@ -2,9 +2,18 @@
 #include <unistd.h>
 #include <assert.h>
 
-WHttpServer::WHttpServer()
+WHttpServer::WHttpServer(mg_mgr *mgr)
 {
-    mg_mgr_init(&_mgr);
+    if (mgr)
+    {
+        _mgr = mgr;
+    }
+    else
+    {
+        _mgr = new mg_mgr();
+        mg_mgr_init(_mgr);
+        _selfMgrFlag = true;
+    }
 }
 
 WHttpServer::~WHttpServer()
@@ -12,6 +21,11 @@ WHttpServer::~WHttpServer()
     stop();
     delete _threadPool;
     _threadPool = nullptr;
+    if (_selfMgrFlag)
+    {
+        delete _mgr;
+        _mgr = nullptr;
+    }
 }
 
 bool WHttpServer::init(int maxEventThreadNum)
@@ -40,7 +54,7 @@ bool WHttpServer::startHttp(int port)
     sstream  << "http://0.0.0.0:" << port;
     _httpCbMsg.httpServer = this;
     _httpCbMsg.httpsFlag = false;
-    mg_connection *serverConn = mg_http_listen(&_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
+    mg_connection *serverConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
     if (!serverConn)
     {
         Logw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
@@ -71,7 +85,7 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
     sstream  << "https://0.0.0.0:" << port;
     _httpsCbMsg.httpServer = this;
     _httpsCbMsg.httpsFlag = true;
-    mg_connection *serverConn = mg_http_listen(&_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
+    mg_connection *serverConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
     if (!serverConn)
     {
         Logw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
@@ -94,7 +108,7 @@ bool WHttpServer::stop()
     _httpsPort = -1;
     usleep(100*1000); // make sure run() can not call mg_mgr_poll
 
-    mg_mgr_free(&_mgr);
+    mg_mgr_free(_mgr);
     reset();
     return true;
 }
@@ -108,7 +122,7 @@ bool WHttpServer::run()
     }
 
     sendHttpMsgPoll();
-    mg_mgr_poll(&_mgr, 1);
+    mg_mgr_poll(_mgr, 1);
     return true;
 }
 
