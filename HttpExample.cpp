@@ -28,7 +28,9 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Origin: *" << "\r\n";
     sstream << "Access-Control-Allow-Methods: GET, PUT, POST, DELETE, OPTIONS" << "\r\n";
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
-    _httpServer->addStaticWebDir("../web", sstream.str());
+    // /home/wenke/QtProgram/openSource/whttp-server/web
+    // _httpServer->addStaticWebDir("../web", sstream.str());
+    _httpServer->addStaticWebDir("/home/wenke/QtProgram/openSource/whttp-server/web", sstream.str());
     _httpServer->startHttp(6200);
     // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
 
@@ -96,7 +98,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
         shared_ptr<string> chunkData = _httpServer->deQueueHttpChunk(httpMsg);
         if (!chunkData.get())
         {
-            usleep(1000);
+            this_thread::sleep_for(chrono::milliseconds(1));;
             continue;
         }
 
@@ -267,7 +269,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
         // 为了防止发送队列里的数据太大，占用大量内存，当发送队列里面的数据达到一定量，先等待
         if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
         {
-            usleep(1000);
+            this_thread::sleep_for(chrono::milliseconds(1));;
             continue;
         }
 
@@ -340,7 +342,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
         // 为了防止发送队列里的数据太大，占用大量内存，当发送队列里面的数据达到一定量，先等待
         if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
         {
-            usleep(1000);
+            this_thread::sleep_for(chrono::milliseconds(1));
             continue;
         }
 

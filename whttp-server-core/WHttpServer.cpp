@@ -106,7 +106,7 @@ bool WHttpServer::stop()
 
     _httpPort = -1;
     _httpsPort = -1;
-    usleep(100*1000); // make sure run() can not call mg_mgr_poll
+    this_thread::sleep_for(chrono::milliseconds(100)); // make sure run() can not call mg_mgr_poll
 
     mg_mgr_free(_mgr);
     reset();
@@ -117,7 +117,7 @@ bool WHttpServer::run()
 {
     if (_httpPort == -1 && _httpsPort == -1)
     {
-        usleep(1000);
+        this_thread::sleep_for(chrono::milliseconds(1));
         return false;
     }
 
@@ -345,7 +345,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
                 forceCloseHttpConnection(httpMsg);
                 return;
             }
-            usleep(1000);
+            this_thread::sleep_for(chrono::milliseconds(1));
             continue;
         }
 
@@ -604,7 +604,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         conn->label[W_CLIENT_CLOSE_BIT] = 1;
         while(conn->label[W_FD_STATUS_BIT] == HTTP_IN_USE)
         {
-            usleep(1);
+            this_thread::sleep_for(chrono::microseconds(100));
         }
         releaseHttpReqMsg(_workingMsgMap[fd]);
         _workingMsgMap.erase(fd);
@@ -904,14 +904,8 @@ void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_messa
     assert(res);
     if (httpMsg->chunkQueue->size() > CHUNK_QUEUE_SIZE_BOUNDARY)
     {
-        usleep(500);
+        this_thread::sleep_for(chrono::milliseconds(1));
     }
-    /*
-    while(!httpMsg->chunkQueue->enQueue(chunk))
-    {
-        usleep(500);
-    }
-    */
     httpMsg->recvChunkSize += httpCbData->chunk.len;
     httpMsg->finishRecvChunk = (httpMsg->recvChunkSize >= httpMsg->totalBodySize);
 }
