@@ -1,5 +1,4 @@
 #include "WHttpServer.h"
-#include <unistd.h>
 #include <assert.h>
 
 WHttpServer::WHttpServer(mg_mgr *mgr)
