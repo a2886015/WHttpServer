@@ -49,7 +49,7 @@ public:
     virtual bool startHttp(int port);
     virtual bool startHttps(int port, string certPath, string keyPath);
     virtual bool stop();
-    virtual bool run();
+    virtual bool run(int timeoutMs);
     virtual bool isRunning();
     virtual void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods);
     virtual void addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods);

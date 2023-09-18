@@ -19,7 +19,7 @@ public:
     void handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg);
     void handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg);
     void handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg);
-    void run();
+    void run(int timeoutMs);
 private:
     WHttpServer *_httpServer = nullptr;
 

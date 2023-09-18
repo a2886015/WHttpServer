@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
     std::thread t1([&] () {
         while(true)
         {
-            httpTest.run();
+            httpTest.run(2);
         }
     });
     t1.join();
@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 
     while(true)
     {
-        httpTest.run();
+        httpTest.run(2);
     }
 
     return 0;

@@ -112,7 +112,7 @@ bool WHttpServer::stop()
     return true;
 }
 
-bool WHttpServer::run()
+bool WHttpServer::run(int timeoutMs)
 {
     if (_httpPort == -1 && _httpsPort == -1)
     {
@@ -121,7 +121,7 @@ bool WHttpServer::run()
     }
 
     sendHttpMsgPoll();
-    mg_mgr_poll(_mgr, 1);
+    mg_mgr_poll(_mgr, timeoutMs);
     return true;
 }
 

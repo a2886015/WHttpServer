@@ -378,7 +378,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     fclose(file);
 }
 
-void HttpExample::run()
+void HttpExample::run(int timeoutMs)
 {
-    _httpServer->run();
+    _httpServer->run(timeoutMs);
 }

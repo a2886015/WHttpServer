@@ -70,7 +70,7 @@ public:
     virtual bool startHttp(int port) = 0;
     virtual bool startHttps(int port, string certPath, string keyPath) = 0;
     virtual bool stop() = 0;
-    virtual bool run() = 0;
+    virtual bool run(int timeoutMs) = 0;
     virtual bool isRunning() = 0;
     virtual void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods) = 0;
     virtual void addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods) = 0;
