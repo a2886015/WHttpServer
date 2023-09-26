@@ -705,19 +705,12 @@ void WHttpServer::sendHttpMsgPoll()
             continue;
         }
 
-        if (conn->send.len > SEND_BUF_SIZE_BOUNDARY)
+        while ((httpMsg->sendQueue->size() > 0) && conn->send.len < SEND_BUF_SIZE_BOUNDARY)
         {
-            continue;
+            shared_ptr<string> sendMsg = deQueueHttpSendMsg(httpMsg);
+            assert(sendMsg.get());
+            mg_send(conn, (const void *)sendMsg->c_str(), sendMsg->size());
         }
-
-        if (httpMsg->sendQueue->size() == 0)
-        {
-            continue;
-        }
-
-        shared_ptr<string> sendMsg = deQueueHttpSendMsg(httpMsg);
-        assert(sendMsg.get());
-        mg_send(conn, (const void *)sendMsg->c_str(), sendMsg->size());
     }
 }
 
