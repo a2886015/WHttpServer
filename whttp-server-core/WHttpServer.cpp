@@ -705,7 +705,7 @@ void WHttpServer::sendHttpMsgPoll()
             continue;
         }
 
-        while ((httpMsg->sendQueue->size() > 0) && conn->send.len < SEND_BUF_SIZE_BOUNDARY)
+        while ((httpMsg->sendQueue->size() > 0) && (conn->send.len < SEND_BUF_SIZE_BOUNDARY))
         {
             shared_ptr<string> sendMsg = deQueueHttpSendMsg(httpMsg);
             assert(sendMsg.get());
