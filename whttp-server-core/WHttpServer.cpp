@@ -699,17 +699,17 @@ void WHttpServer::sendHttpMsgPoll()
             }
         }
 
-        if ((conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE) && (httpMsg->sendQueue->size() == 0))
-        {
-            conn->is_draining = 1;
-            continue;
-        }
-
         while ((httpMsg->sendQueue->size() > 0) && (conn->send.len < SEND_BUF_SIZE_BOUNDARY))
         {
             shared_ptr<string> sendMsg = deQueueHttpSendMsg(httpMsg);
             assert(sendMsg.get());
             mg_send(conn, (const void *)sendMsg->c_str(), sendMsg->size());
+        }
+
+        if ((conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE) && (httpMsg->sendQueue->size() == 0))
+        {
+            conn->is_draining = 1;
+            // continue;
         }
     }
 }
