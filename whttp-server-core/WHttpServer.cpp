@@ -420,7 +420,6 @@ void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, st
     sstream << body;
 
     string data = sstream.str();
-    // xy_sync_mg_send(conn, data.c_str(), data.size());
     addSendMsgToQueue(httpMsg, data.c_str(), data.size());
 }
 
@@ -526,7 +525,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0)
                  && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
             {
-                mg_http_reply(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+                mg_http_reply(conn, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
                 closeHttpConnection(conn, true);
                 return;
             }
@@ -622,7 +621,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
 
         if (!findFlag)
         {
-            httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+            httpReplyJson(httpMsg, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
         }
     }
     else
@@ -632,10 +631,11 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
             closeHttpConnection(httpMsg->httpConnection);
             return;
         }
+
         set<string> methods = getSupportMethods(httpCbData.httpMethods);
         if (methods.find(httpMsg->method) == methods.end())
         {
-            httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+            httpReplyJson(httpMsg, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
             closeHttpConnection(httpMsg->httpConnection);
             return;
         }
@@ -662,7 +662,7 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiDat
     set<string> methods = getSupportMethods(chunkHttpCbData.httpMethods);
     if (methods.find(httpMsg->method) == methods.end())
     {
-        httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+        httpReplyJson(httpMsg, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
         closeHttpConnection(httpMsg->httpConnection);
         return;
     }
