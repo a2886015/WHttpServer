@@ -100,7 +100,10 @@ bool WHttpServer::stop()
     _httpsPort = -1;
     this_thread::sleep_for(chrono::milliseconds(100)); // make sure run() can not call mg_mgr_poll
 
-    mg_mgr_free(_mgr);
+    if (_selfMgrFlag)
+    {
+        mg_mgr_free(_mgr);
+    }
     reset();
     return true;
 }
