@@ -47,7 +47,7 @@ public:
     virtual bool init(int maxEventThreadNum);
     virtual bool startHttp(int port);
     virtual bool startHttps(int port, string certPath, string keyPath);
-    virtual bool stop();
+    virtual bool stop(); // mg_mgr是外部传入时，外部需要主动调用stop函数
     virtual bool run(int timeoutMs);
     virtual bool isRunning();
     virtual void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods);
