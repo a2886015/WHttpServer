@@ -3,11 +3,8 @@
 
 WHttpServer::WHttpServer(mg_mgr *mgr)
 {
-    if (mgr)
-    {
-        _mgr = mgr;
-    }
-    else
+    _mgr = mgr;
+    if (!_mgr)
     {
         _mgr = new mg_mgr();
         mg_mgr_init(_mgr);
