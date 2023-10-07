@@ -14,15 +14,17 @@ WHttpServer::WHttpServer(mg_mgr *mgr)
 
 WHttpServer::~WHttpServer()
 {
-    stop();
-    delete _threadPool;
-    _threadPool = nullptr;
     if (_selfMgrFlag)
     {
+        stop();
         mg_mgr_free(_mgr);
         delete _mgr;
         _mgr = nullptr;
     }
+
+    _threadPool->waitForDone(3000);
+    delete _threadPool;
+    _threadPool = nullptr;
 }
 
 bool WHttpServer::init(int maxEventThreadNum)
