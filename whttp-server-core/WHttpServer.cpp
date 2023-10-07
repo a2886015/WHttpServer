@@ -19,6 +19,7 @@ WHttpServer::~WHttpServer()
     _threadPool = nullptr;
     if (_selfMgrFlag)
     {
+        mg_mgr_free(_mgr);
         delete _mgr;
         _mgr = nullptr;
     }
@@ -48,8 +49,8 @@ bool WHttpServer::startHttp(int port)
     sstream  << "http://0.0.0.0:" << port;
     _httpCbMsg.httpServer = this;
     _httpCbMsg.httpsFlag = false;
-    mg_connection *serverConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
-    if (!serverConn)
+    _httpServerConn= mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
+    if (!_httpServerConn)
     {
         Logw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
         return false;
@@ -78,8 +79,8 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
     sstream  << "https://0.0.0.0:" << port;
     _httpsCbMsg.httpServer = this;
     _httpsCbMsg.httpsFlag = true;
-    mg_connection *serverConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
-    if (!serverConn)
+    _httpsServerConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
+    if (!_httpsServerConn)
     {
         Logw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
         return false;
@@ -98,25 +99,29 @@ bool WHttpServer::stop()
 
     _httpPort = -1;
     _httpsPort = -1;
-    this_thread::sleep_for(chrono::milliseconds(100)); // make sure run() can not call mg_mgr_poll
 
-    if (_selfMgrFlag)
+    if (_httpServerConn)
     {
-        mg_mgr_free(_mgr);
+        _httpServerConn->is_draining = 1;
     }
+
+    if (_httpsServerConn)
+    {
+        _httpsServerConn->is_draining = 1;
+    }
+
+    this_thread::sleep_for(chrono::milliseconds(100)); // make sure other thread know server closing
     reset();
     return true;
 }
 
 bool WHttpServer::run(int timeoutMs)
 {
-    if (_httpPort == -1 && _httpsPort == -1)
+    if (_httpPort != -1 || _httpsPort != -1)
     {
-        this_thread::sleep_for(chrono::milliseconds(1));
-        return false;
+        sendHttpMsgPoll();
     }
 
-    sendHttpMsgPoll();
     mg_mgr_poll(_mgr, timeoutMs);
     return true;
 }

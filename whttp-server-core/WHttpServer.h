@@ -68,6 +68,9 @@ public:
 private:
     volatile int _httpPort = -1;
     volatile int _httpsPort = -1;
+    mg_connection *_httpServerConn = nullptr;
+    mg_connection *_httpsServerConn = nullptr;
+
     struct mg_mgr *_mgr = nullptr;
     bool _selfMgrFlag = false;
     string _certPath = "";
