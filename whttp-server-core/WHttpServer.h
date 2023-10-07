@@ -1,7 +1,6 @@
 #pragma once
 
 #include "IHttpServer.h"
-#include <mutex>
 #include <set>
 #include <vector>
 #include <time.h>
@@ -69,7 +68,6 @@ public:
 private:
     volatile int _httpPort = -1;
     volatile int _httpsPort = -1;
-    std::mutex _httpLocker;
     struct mg_mgr *_mgr = nullptr;
     bool _selfMgrFlag = false;
     string _certPath = "";

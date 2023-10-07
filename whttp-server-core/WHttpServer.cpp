@@ -26,7 +26,6 @@ WHttpServer::~WHttpServer()
 
 bool WHttpServer::init(int maxEventThreadNum)
 {
-    std::unique_lock<mutex> locker(_httpLocker);
     _threadPool = new WThreadPool();
     _threadPool->setMaxThreadNum(maxEventThreadNum);
     return true;
@@ -34,7 +33,6 @@ bool WHttpServer::init(int maxEventThreadNum)
 
 bool WHttpServer::startHttp(int port)
 {
-    std::unique_lock<mutex> locker(_httpLocker);
     if (!_threadPool)
     {
         Logw("WHttpServer::StartHttp do not init");
@@ -63,7 +61,6 @@ bool WHttpServer::startHttp(int port)
 
 bool WHttpServer::startHttps(int port, string certPath, string keyPath)
 {
-    std::unique_lock<mutex> locker(_httpLocker);
     if (!_threadPool)
     {
         Logw("WHttpServer::StartHttps do not init");
@@ -94,7 +91,6 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
 
 bool WHttpServer::stop()
 {
-    std::unique_lock<mutex> locker(_httpLocker);
     if (_httpPort == -1 && _httpsPort == -1)
     {
         return true;
