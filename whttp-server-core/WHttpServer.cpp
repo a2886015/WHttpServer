@@ -232,14 +232,7 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
     int64_t fileSize = statbuf.st_size;
     stringstream sstream;
 
-    if (httpMsg->method == "HEAD")
-    {
-        formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 200);
-        sstream << "Content-Length: " << fileSize << "\r\n";
-        sstream << "\r\n"; // 空行表示http头部完成
-        addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
-    }
-    else if (httpMsg->method == "OPTIONS")
+    if (httpMsg->method == "OPTIONS")
     {
         formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 204);
         sstream << "\r\n"; // 空行表示http头部完成
@@ -269,7 +262,10 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
             sstream << "Content-Length: " << contentLength << "\r\n";
             sstream << "\r\n";
             addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
-            readStaticWebFile(httpMsg, file, contentLength, startByte);
+            if (httpMsg->method != "HEAD")
+            {
+                readStaticWebFile(httpMsg, file, contentLength, startByte);
+            }
         }
         else
         {
@@ -277,7 +273,10 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
             sstream << "Content-Length: " << fileSize << "\r\n";
             sstream << "\r\n";
             addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
-            readStaticWebFile(httpMsg, file, fileSize, 0);
+            if (httpMsg->method != "HEAD")
+            {
+                readStaticWebFile(httpMsg, file, fileSize, 0);
+            }
         }
     }
 
