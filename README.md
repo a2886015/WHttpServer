@@ -110,7 +110,7 @@ void HttpExample::start()
 ```
 while(true)
 {
-    httpTest.run();
+    httpTest.run(2);
 }
 ```
 
