@@ -6,7 +6,6 @@
 
 操作系统：Linux。
 在mac下也可以运行，但是需要自己修改CMakeLists.txt文件适配好openssl的库；
-windows下理论上也可以，但是我目前没有windows电脑使用，暂时没有验证
 
 另外，在linux系统下，可以将CMakeLists.txt中add_definitions(-DUSE_EPOLL)这句打开，这样底层就会切换成epoll
 
