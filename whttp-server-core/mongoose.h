@@ -423,7 +423,7 @@ static __inline struct tm *localtime_r(time_t *t, struct tm *tm) {
 #endif
 
 #ifndef MG_ENABLE_IPV6
-#define MG_ENABLE_IPV6 0
+#define MG_ENABLE_IPV6 1
 #endif
 
 #ifndef MG_ENABLE_LOG
