@@ -82,6 +82,7 @@ void WThreadPool::run()
         unique_lock<mutex> locker(_threadIsRunMutex);
         _threadIsRunMap[this_thread::get_id()] = true;
     }
+
     while (!_exitAllFlag)
     {
         {
@@ -145,13 +146,14 @@ void WThreadPool::managerThread()
                 _mgrCondVar.wait_until(locker, now + chrono::seconds(WPOOL_MANAGE_SECONDS));
             }
         }
+
         if (_exitAllFlag)
         {
             break;
         }
 
         adjustWorkThread();
-        // WThreadPool_log("get here to show work thread num:%d", _workThreadList.size());
+        // WThreadPool_log("show work thread num:%d", _workThreadList.size());
     }
     stopWorkThread();
 }
@@ -222,6 +224,7 @@ void WThreadPool::adjustWorkThread()
             }
 
             this_thread::sleep_for(chrono::milliseconds(1));
+
             {
                 unique_lock<mutex> locker(_threadIsRunMutex);
                 for (auto it = _workThreadList.begin(); it != _workThreadList.end();)
@@ -242,13 +245,8 @@ void WThreadPool::adjustWorkThread()
                 }
             }
 
-            if (findExitThreadNum < reduceThreadNum)
-            {
-                this_thread::sleep_for(chrono::milliseconds(1));
-            }
-
             /*
-            WThreadPool_log("get here 3 to show findExitThreadNum:%d, reduceThreadNum:%d, _reduceThreadNum:%d", findExitThreadNum, reduceThreadNum, (int)_reduceThreadNum);
+            WThreadPool_log("show findExitThreadNum:%d, reduceThreadNum:%d, _reduceThreadNum:%d", findExitThreadNum, reduceThreadNum, (int)_reduceThreadNum);
             for (auto it = _workThreadList.begin(); it != _workThreadList.end(); it++)
             {
                 WThreadPool_log("work thread pid:%lld", (*it)->get_id());
