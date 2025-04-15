@@ -10,6 +10,7 @@
 #include <map>
 #include <sstream>
 #include <condition_variable>
+#include <future>
 #include "LockQueue.hpp"
 #include <assert.h>
 
@@ -35,8 +36,8 @@ public:
     bool waitForDone(int waitMs = -1);
 
     template<typename Func, typename ...Arguments >
-    void concurrentRun(Func func, Arguments... args) {
-        EventFun queunFun = std::bind(func, args...);
+    void concurrentRun(Func &&func, Arguments&&... args) {
+        EventFun queunFun = std::bind(func, std::forward<Arguments>(args)...);
         enQueueEvent(queunFun);
         if (((int)_workThreadList.size() < _maxThreadNum) &&
                 (_eventQueue.size() >= ((int)_workThreadList.size() - _busyThreadNum - ADD_THREAD_BOUNDARY)))

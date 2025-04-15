@@ -25,7 +25,8 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Origin: *" << "\r\n";
     sstream << "Access-Control-Allow-Methods: GET, PUT, POST, DELETE, OPTIONS" << "\r\n";
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
-    _httpServer->addStaticWebDir("../web", sstream.str());
+    _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
+    _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
     _httpServer->startHttp(6200);
     // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
 
