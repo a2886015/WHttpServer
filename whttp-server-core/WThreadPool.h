@@ -35,6 +35,7 @@ public:
     void setMaxThreadNum(int maxNum);
     bool waitForDone(int waitMs = -1);
 
+    /*
     template<typename Func, typename ...Arguments >
     void concurrentRun(Func &&func, Arguments&&... args) {
         EventFun queunFun = std::bind(func, std::forward<Arguments>(args)...);
@@ -45,6 +46,32 @@ public:
            _mgrCondVar.notify_one();
         }
         _workCondVar.notify_one();
+    }
+    */
+
+    template<typename Func, typename... Arguments>
+    auto concurrentRun(Func &&func, Arguments&&... args)
+        -> std::future<decltype(std::bind(std::forward<Func>(func), std::forward<Arguments>(args)...)())>
+    {
+        using return_type = decltype(std::bind(std::forward<Func>(func), std::forward<Arguments>(args)...)());
+
+        auto task = std::make_shared<std::packaged_task<return_type()>>(
+            std::bind(std::forward<Func>(func), std::forward<Arguments>(args)...)
+        );
+
+        std::future<return_type> res = task->get_future();
+        EventFun queueFun = [task]() { (*task)(); };
+
+        enQueueEvent(queueFun);
+
+        // 线程管理逻辑
+        if (((int)_workThreadList.size() < _maxThreadNum) &&
+            (_eventQueue.size() >= ((int)_workThreadList.size() - _busyThreadNum - ADD_THREAD_BOUNDARY))) {
+            _mgrCondVar.notify_one();
+        }
+        _workCondVar.notify_one();
+
+        return res;
     }
 
     template<typename T> static int64_t threadIdToint64(T threadId)
@@ -78,6 +105,11 @@ private:
 
     static std::shared_ptr<WThreadPool> s_threadPool;
     static std::mutex s_globleMutex;
+
+    WThreadPool(const WThreadPool &) = delete;
+    WThreadPool(WThreadPool &&) = delete;
+    WThreadPool& operator=(const WThreadPool &) = delete;
+    WThreadPool& operator=(WThreadPool &&) = delete;
 
     void enQueueEvent(EventFun fun);
     EventFun  deQueueEvent();
