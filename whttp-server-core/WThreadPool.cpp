@@ -170,9 +170,10 @@ void WThreadPool::startWorkThread()
 void WThreadPool::stopWorkThread()
 {
     {
-        unique_lock<mutex> locker(_mgrMutex);
+        unique_lock<mutex> locker(_workMutex);
         _workCondVar.notify_all();
     }
+
     for (auto it = _workThreadList.begin(); it != _workThreadList.end(); it++)
     {
         if ((*it)->joinable())
