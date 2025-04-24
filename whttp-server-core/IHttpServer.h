@@ -11,9 +11,9 @@
 
 using namespace std;
 
-#define Logi(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][I] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
-#define Logw(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][W] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
-#define Loge(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][E] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define WLogi(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][I] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define WLogw(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][W] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define WLoge(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][E] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
 
 #define W_HTTP_GET      (1 << 0)
 #define W_HTTP_POST     (1 << 1)
@@ -60,6 +60,7 @@ struct HttpReqMsg
 
 using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>;
 using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>;
+using TimerEventFun = std::function<void()>;
 
 class IHttpServer
 {
@@ -83,4 +84,7 @@ public:
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual bool addStaticWebDir(const string &dir, const string &header = "") = 0;
+    virtual uint16_t addTimerEvent(unsigned long ms, TimerEventFun timerEventFun) = 0;
+    virtual bool deleteTimerEvent(uint16_t timerEventId) = 0;
+    virtual bool deleteAllTimerEvent() = 0;
 };

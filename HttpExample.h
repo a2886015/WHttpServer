@@ -25,6 +25,10 @@ private:
 
     bool parseMultipartStream(string &parseBuf, string &extraDataBuf, std::map<string, FILE *> &fileWriterMap,
                               std::map<string, string> &formParamsMap, string &filePathPrefix, string &errMsg);
+    void timerEvent();
+
     static string intToHexStr(int num);
+
+    uint16_t _timerId = 0;
 };
 

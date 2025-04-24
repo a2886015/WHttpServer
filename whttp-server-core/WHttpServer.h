@@ -39,6 +39,12 @@ struct HttpStaticWebDir
     string header = "";
 };
 
+struct WTimerData
+{
+    mg_timer timer;
+    TimerEventFun timerFun;
+};
+
 class WHttpServer: public IHttpServer
 {
 public:
@@ -61,6 +67,9 @@ public:
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg);
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg);
     virtual bool addStaticWebDir(const string &dir, const string &header = "");
+    virtual uint16_t addTimerEvent(unsigned long ms, TimerEventFun timerEventFun);
+    virtual bool deleteTimerEvent(uint16_t timerEventId);
+    virtual bool deleteAllTimerEvent();
 
     static void toLowerString(string &str);
     static void toUpperString(string &str);
@@ -84,6 +93,8 @@ private:
     HttpFilterFun _httpFilterFun = nullptr;
     vector<HttpStaticWebDir> _staticDirVect;
     std::atomic<int> _currentKeepAliveNum {0};
+    uint16_t _currentTimerId = 1;
+    std::map<uint16_t, WTimerData*> _timerEventMap;
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData);
@@ -109,6 +120,7 @@ private:
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     static uint64_t getSysTickCountInMilliseconds();
+    static void timerEventAdapter(void *ptr);
 };
 
 

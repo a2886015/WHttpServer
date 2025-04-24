@@ -41,6 +41,9 @@ void HttpExample::start()
 
     HttpCbFun chunkDownloadFileCbFun = std::bind(&HttpExample::handleHttpChunkDownloadFile, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/chunkDownloadFile/", chunkDownloadFileCbFun, W_HTTP_GET);
+
+    TimerEventFun timerFun = std::bind(&HttpExample::timerEvent, this);
+    _timerId = _httpServer->addTimerEvent(2000, timerFun);
 }
 
 /*
@@ -78,7 +81,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
     {
         if (!_httpServer->isRunning())
         {
-            Logw("handleHttpBigFileUpload http server close");
+            WLogw("handleHttpBigFileUpload http server close");
             errMsg = "http server will close";
             successFlag = false;
             break;
@@ -86,7 +89,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
 
         if (_httpServer->isClientDisconnect(httpMsg))
         {
-            Logw("handleHttpBigFileUpload http client close the connection actively");
+            WLogw("handleHttpBigFileUpload http client close the connection actively");
             successFlag = false;
             break;
         }
@@ -117,7 +120,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
         successFlag = parseMultipartStream(parseBuf, extraDataBuf, fileWriterMap, formParamsMap, filePathPrefix, errMsg);
     }
 
-    Logi("HttpServer::HandleFormDataUpload successFlag is %d, err msg is %s", successFlag, errMsg.c_str());
+    WLogi("HttpServer::HandleFormDataUpload successFlag is %d, err msg is %s", successFlag, errMsg.c_str());
 
     for (auto it = fileWriterMap.begin(); it != fileWriterMap.end(); it++)
     {
@@ -212,6 +215,12 @@ bool HttpExample::parseMultipartStream(string &parseBuf, string &extraDataBuf, s
     return true;
 }
 
+void HttpExample::timerEvent()
+{
+    WLogi("HttpExample::timerEvent enter");
+    _httpServer->deleteTimerEvent(_timerId);
+}
+
 string HttpExample::intToHexStr(int num)
 {
     char data[50] = {0};
@@ -227,7 +236,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
     {
-        Logw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
+        WLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
         _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(101, "can not open file"));
         return;
     }
@@ -258,7 +267,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     {
         if (_httpServer->isClientDisconnect(httpMsg))
         {
-            Logw("handleHttpDownloadFile http client close the connection actively");
+            WLogw("handleHttpDownloadFile http client close the connection actively");
             break;
         }
 
@@ -279,7 +288,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
         currentReadSize += readSize;
         if (readSize == 0)
         {
-            Logw("handleHttpDownloadFile read size is 0");
+            WLogw("handleHttpDownloadFile read size is 0");
             break;
         }
 
@@ -304,7 +313,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
     {
-        Logw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
+        WLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
         _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(101, "can not open file"));
         return;
     }
@@ -331,7 +340,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     {
         if (_httpServer->isClientDisconnect(httpMsg))
         {
-            Logw("handleHttpDownloadFile http client close the connection actively");
+            WLogw("handleHttpDownloadFile http client close the connection actively");
             break;
         }
 
@@ -351,7 +360,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
         currentReadSize += readSize;
         if (readSize == 0)
         {
-            Logw("handleHttpDownloadFile read size is 0");
+            WLogw("handleHttpDownloadFile read size is 0");
             delete fileStr;
             break;
         }

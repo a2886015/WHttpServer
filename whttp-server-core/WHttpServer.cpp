@@ -14,6 +14,7 @@ WHttpServer::WHttpServer(mg_mgr *mgr)
 
 WHttpServer::~WHttpServer()
 {
+    deleteAllTimerEvent();
     if (_selfMgrFlag)
     {
         stop();
@@ -38,13 +39,13 @@ bool WHttpServer::startHttp(int port)
 {
     if (!_threadPool)
     {
-        Logw("WHttpServer::StartHttp do not init");
+        WLogw("WHttpServer::StartHttp do not init");
         return false;
     }
 
     if (_httpPort != -1)
     {
-        Logw("WHttpServer::StartHttp http server is already start port:%d", _httpPort);
+        WLogw("WHttpServer::StartHttp http server is already start port:%d", _httpPort);
         return false;
     }
     std::stringstream sstream;
@@ -54,10 +55,10 @@ bool WHttpServer::startHttp(int port)
     _httpServerConn= mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
     if (!_httpServerConn)
     {
-        Logw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
+        WLogw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
         return false;
     }
-    Logi("WHttpServer::StartHttp http server start success: %s", sstream.str().c_str());
+    WLogi("WHttpServer::StartHttp http server start success: %s", sstream.str().c_str());
     _httpPort = port;
     return true;
 }
@@ -66,13 +67,13 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
 {
     if (!_threadPool)
     {
-        Logw("WHttpServer::StartHttps do not init");
+        WLogw("WHttpServer::StartHttps do not init");
         return false;
     }
 
     if (_httpsPort != -1)
     {
-        Logw("WHttpServer::StartHttps https server is already start port:%d", _httpsPort);
+        WLogw("WHttpServer::StartHttps https server is already start port:%d", _httpsPort);
         return false;
     }
     _certPath = certPath;
@@ -84,10 +85,10 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
     _httpsServerConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
     if (!_httpsServerConn)
     {
-        Logw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
+        WLogw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
         return false;
     }
-    Logi("WHttpServer::StartHttps https server start success: %s", sstream.str().c_str());
+    WLogi("WHttpServer::StartHttps https server start success: %s", sstream.str().c_str());
     _httpsPort = port;
     return true;
 }
@@ -311,6 +312,7 @@ void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<Ht
             sstream << "Connection: " << "close" << "\r\n";
         }
     }
+
     if (!webDir.header.empty())
     {
         sstream << webDir.header;
@@ -332,7 +334,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
     {
         if (isClientDisconnect(httpMsg))
         {
-            Logw("WHttpServer::readStaticWebFile http client close the connection actively");
+            WLogw("WHttpServer::readStaticWebFile http client close the connection actively");
             break;
         }
 
@@ -342,7 +344,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
             currentMs = getSysTickCountInMilliseconds();
             if (currentMs - lastWriteMs > MAX_DOWNLOAD_PAUSE_TIME * 1000)
             {
-                Logi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
+                WLogi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
                 forceCloseHttpConnection(httpMsg);
                 return;
             }
@@ -358,7 +360,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         currentReadSize += readSize;
         if (readSize == 0)
         {
-            Logw("WHttpServer::readStaticWebFile read size is 0");
+            WLogw("WHttpServer::readStaticWebFile read size is 0");
             delete fileStr;
             break;
         }
@@ -403,13 +405,13 @@ void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCb
 {
     if (httpCbData->message.len < 1024)
     {
-        Logi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
+        WLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
     }
     else
     {
         char msg[1024] = {0};
         memcpy(msg, httpCbData->message.ptr, 1024);
-        Logi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
+        WLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
 }
 
@@ -471,13 +473,13 @@ bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
     char tempDir[PATH_MAX];
     if (!realpath(dir.c_str(), tempDir))
     {
-        Loge("WHttpServer::addStaticWebDir the dir path is wrong: %s", dir.c_str());
+        WLoge("WHttpServer::addStaticWebDir the dir path is wrong: %s", dir.c_str());
         return false;
     }
 
     if (!mg_is_dir(tempDir))
     {
-        Loge("WHttpServer::addStaticWebDir is not dir: %s", dir.c_str());
+        WLoge("WHttpServer::addStaticWebDir is not dir: %s", dir.c_str());
         return false;
     }
 
@@ -485,6 +487,43 @@ bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
     staticDir.dirPath = tempDir;
     staticDir.header = header;
     _staticDirVect.push_back(staticDir);
+    return true;
+}
+
+uint16_t WHttpServer::addTimerEvent(unsigned long ms, TimerEventFun timerEventFun)
+{
+    WTimerData *timerData = new WTimerData();
+    timerData->timerFun = timerEventFun;
+    mg_timer_init(&timerData->timer, ms, MG_TIMER_REPEAT, &WHttpServer::timerEventAdapter, (void *)timerData);
+    uint16_t timerId = _currentTimerId++;
+    _timerEventMap[timerId] = timerData;
+    return timerId;
+}
+
+bool WHttpServer::deleteTimerEvent(uint16_t timerEventId)
+{
+    if (_timerEventMap.find(timerEventId) == _timerEventMap.end())
+    {
+        return true;
+    }
+
+    WTimerData *timerData = _timerEventMap[timerEventId];
+    mg_timer_free(&timerData->timer);
+    delete timerData;
+    _timerEventMap.erase(timerEventId);
+    return true;
+}
+
+bool WHttpServer::deleteAllTimerEvent()
+{
+    for(auto it = _timerEventMap.begin(); it != _timerEventMap.end(); )
+    {
+        WTimerData *timerData = it->second;
+        mg_timer_free(&timerData->timer);
+        delete timerData;
+        it = _timerEventMap.erase(it);
+    }
+
     return true;
 }
 
@@ -506,7 +545,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         opts.ciphers = nullptr;
         opts.srvname.ptr = nullptr;
         opts.srvname.len = 0;
-        Logi("WHttpServer::recvHttpRequest https connect come id:%ld", conn->id);
+        WLogi("WHttpServer::recvHttpRequest https connect come id:%ld", conn->id);
         mg_tls_init(conn, &opts);
     }
     else if (msgType == MG_EV_HTTP_MSG)
@@ -540,6 +579,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
                 cbApiData.findStaticFileFlag = true;
             }
         }
+
         shared_ptr<HttpReqMsg> httpMsg = nullptr;
         // if keep-alive fd, erase last http msg
         if (_workingMsgMap.find(fd) != _workingMsgMap.end())
@@ -588,7 +628,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     }
     else if (msgType == MG_EV_CLOSE)
     {
-        Logi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
+        WLogi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
         if (conn->label[W_VALID_CONNECT_BIT] != 1)
         {
             return;
@@ -665,6 +705,7 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiDat
         closeHttpConnection(httpMsg->httpConnection);
         return;
     }
+
     set<string> methods = getSupportMethods(chunkHttpCbData.httpMethods);
     if (methods.find(httpMsg->method) == methods.end())
     {
@@ -672,6 +713,7 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiDat
         closeHttpConnection(httpMsg->httpConnection);
         return;
     }
+
     chunkHttpCbData.httpCbFun(httpMsg);
     closeHttpConnection(httpMsg->httpConnection);
 }
@@ -864,7 +906,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     }
     else
     {
-        Logi("WHttpServer::ParseHttpMsg request id:%ld have no content-length", conn->id);
+        WLogi("WHttpServer::ParseHttpMsg request id:%ld have no content-length", conn->id);
         res->totalBodySize = httpCbData->body.len;
     }
 
@@ -954,4 +996,10 @@ uint64_t WHttpServer::getSysTickCountInMilliseconds()
     }
     uint64_t result = ((uint64_t)time.tv_sec) * 1000 + ((uint64_t)time.tv_nsec) / 1000000;
     return result;
+}
+
+void WHttpServer::timerEventAdapter(void *ptr)
+{
+    WTimerData *timerData = static_cast<WTimerData *>(ptr);
+    (timerData->timerFun)();
 }
