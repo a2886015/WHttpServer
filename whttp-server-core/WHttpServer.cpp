@@ -649,6 +649,11 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         releaseHttpReqMsg(_workingMsgMap[fd]);
         _workingMsgMap.erase(fd);
     }
+    else if (msgType == MG_EV_ERROR)
+    {
+        char *errorStr = (char *) msgData;
+        WLoge("WHttpServer::RecvHttpRequest mongoose error:%s", errorStr);
+    }
 }
 
 void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData)
