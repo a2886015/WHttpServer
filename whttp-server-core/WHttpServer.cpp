@@ -411,7 +411,7 @@ void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCb
     {
         char msg[1024] = {0};
         memcpy(msg, httpCbData->message.ptr, 1024);
-        WLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
+        WLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 1024 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
 }
 
