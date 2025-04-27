@@ -23,15 +23,24 @@ WHttpServer::~WHttpServer()
         _mgr = nullptr;
     }
 
-    _threadPool->waitForDone(3000);
-    delete _threadPool;
-    _threadPool = nullptr;
+    if (_selfThreadPoolFlag && _threadPool)
+    {
+        _threadPool->waitForDone(3000);
+        delete _threadPool;
+        _threadPool = nullptr;
+    }
 }
 
-bool WHttpServer::init(int maxEventThreadNum)
+bool WHttpServer::init(int maxEventThreadNum, WThreadPool *threadPool)
 {
-    _threadPool = new WThreadPool();
-    _threadPool->setMaxThreadNum(maxEventThreadNum);
+    _threadPool = threadPool;
+    if (!_threadPool)
+    {
+        _selfThreadPoolFlag = true;
+        _threadPool = new WThreadPool();
+        _threadPool->setMaxThreadNum(maxEventThreadNum);
+    }
+
     return true;
 }
 

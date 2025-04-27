@@ -4,7 +4,6 @@
 #include <set>
 #include <vector>
 #include <time.h>
-#include "WThreadPool.h"
 #include <atomic>
 
 #define HTTP_SEND_QUEUE_SIZE 3
@@ -50,7 +49,7 @@ class WHttpServer: public IHttpServer
 public:
     WHttpServer(mg_mgr *mgr = nullptr);
     virtual ~WHttpServer();
-    virtual bool init(int maxEventThreadNum);
+    virtual bool init(int maxEventThreadNum, WThreadPool *threadPool = nullptr);
     virtual bool startHttp(int port);
     virtual bool startHttps(int port, string certPath, string keyPath);
     virtual bool stop(); // mg_mgr是外部传入时，外部需要主动调用stop函数
@@ -82,6 +81,7 @@ private:
 
     struct mg_mgr *_mgr = nullptr;
     bool _selfMgrFlag = false;
+    bool _selfThreadPoolFlag = false;
     string _certPath = "";
     string _keyPath = "";
     WHttpServerCbMsg _httpCbMsg;

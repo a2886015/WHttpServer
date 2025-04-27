@@ -8,6 +8,7 @@
 #include <time.h>
 #include <functional>
 #include <sstream>
+#include "WThreadPool.h"
 
 using namespace std;
 
@@ -67,7 +68,7 @@ class IHttpServer
 public:
     IHttpServer(mg_mgr * = nullptr){}
     virtual ~IHttpServer(){}
-    virtual bool init(int maxEventThreadNum) = 0;
+    virtual bool init(int maxEventThreadNum, WThreadPool *threadPool = nullptr) = 0;
     virtual bool startHttp(int port) = 0;
     virtual bool startHttps(int port, string certPath, string keyPath) = 0;
     virtual bool stop() = 0;
