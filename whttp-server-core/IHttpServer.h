@@ -65,7 +65,7 @@ using TimerEventFun = std::function<void()>;
 class IHttpServer
 {
 public:
-    IHttpServer(mg_mgr *mgr = nullptr){}
+    IHttpServer(mg_mgr * = nullptr){}
     virtual ~IHttpServer(){}
     virtual bool init(int maxEventThreadNum) = 0;
     virtual bool startHttp(int port) = 0;
