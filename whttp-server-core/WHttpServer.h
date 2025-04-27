@@ -20,20 +20,20 @@
 #define MAX_DOWNLOAD_PAUSE_TIME 60 // 60s
 
 class WHttpServer;
-struct HttpCbMsg
+struct WHttpServerCbMsg
 {
    WHttpServer *httpServer = nullptr;
    bool httpsFlag = false;
 };
 
-struct HttpApiData
+struct WHttpServerApiData
 {
     HttpCbFun httpCbFun = nullptr;
     int httpMethods = -1;
     bool findStaticFileFlag = false;
 };
 
-struct HttpStaticWebDir
+struct WHttpStaticWebDir
 {
     string dirPath = "";
     string header = "";
@@ -84,33 +84,33 @@ private:
     bool _selfMgrFlag = false;
     string _certPath = "";
     string _keyPath = "";
-    HttpCbMsg _httpCbMsg;
-    HttpCbMsg _httpsCbMsg;
+    WHttpServerCbMsg _httpCbMsg;
+    WHttpServerCbMsg _httpsCbMsg;
     std::map<int64_t, shared_ptr<HttpReqMsg>> _workingMsgMap;
     WThreadPool *_threadPool = nullptr;
-    std::map<string, HttpApiData> _httpApiMap;
-    std::map<string, HttpApiData> _chunkHttpApiMap;
+    std::map<string, WHttpServerApiData> _httpApiMap;
+    std::map<string, WHttpServerApiData> _chunkHttpApiMap;
     HttpFilterFun _httpFilterFun = nullptr;
-    vector<HttpStaticWebDir> _staticDirVect;
+    vector<WHttpStaticWebDir> _staticDirVect;
     std::atomic<int> _currentKeepAliveNum {0};
     uint16_t _currentTimerId = 1;
     std::map<uint16_t, WTimerData*> _timerEventMap;
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
-    void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData);
-    void handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData chunkHttpCbData);
+    void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData httpCbData);
+    void handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData chunkHttpCbData);
     void sendHttpMsgPoll();
     shared_ptr<string> deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMsg);
-    bool findHttpCbFun(mg_http_message *httpCbData, HttpApiData &cbApiData);
-    bool findChunkHttpCbFun(mg_http_message *httpCbData, HttpApiData &cbApiData);
+    bool findHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData);
+    bool findChunkHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData);
     bool isValidHttpChunk(mg_http_message *httpCbData);
     shared_ptr<HttpReqMsg> parseHttpMsg(struct mg_connection *conn, struct mg_http_message *httpCbData, bool chunkFlag = false);
     void enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData);
     void releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg);
     void closeHttpConnection(struct mg_connection *conn, bool isDirectClose = false);
     std::set<string> getSupportMethods(int httpMethods);
-    bool handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticWebDir &webDir);
-    void formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, HttpStaticWebDir &webDir,
+    bool handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStaticWebDir &webDir);
+    void formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, WHttpStaticWebDir &webDir,
                        string &filePath, int code);
     void readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentLength,
                            int64_t startByte);

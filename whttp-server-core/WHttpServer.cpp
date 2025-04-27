@@ -136,7 +136,7 @@ bool WHttpServer::isRunning()
 
 void WHttpServer::addHttpApi(const string &uri, HttpCbFun fun, int httpMethods)
 {
-    HttpApiData httpApiData;
+    WHttpServerApiData httpApiData;
     httpApiData.httpCbFun = fun;
     httpApiData.httpMethods = httpMethods;
     _httpApiMap[uri] = httpApiData;
@@ -144,7 +144,7 @@ void WHttpServer::addHttpApi(const string &uri, HttpCbFun fun, int httpMethods)
 
 void WHttpServer::addChunkHttpApi(const string &uri, HttpCbFun fun, int httpMethods)
 {
-    HttpApiData httpApiData;
+    WHttpServerApiData httpApiData;
     httpApiData.httpCbFun = fun;
     httpApiData.httpMethods = httpMethods;
     _chunkHttpApiMap[uri] = httpApiData;
@@ -216,7 +216,7 @@ std::set<string> WHttpServer::getSupportMethods(int httpMethods)
     return methodsSet;
 }
 
-bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticWebDir &webDir)
+bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStaticWebDir &webDir)
 {
     string filePath = webDir.dirPath + httpMsg->uri;
 
@@ -289,7 +289,7 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, HttpStaticW
     return true;
 }
 
-void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, HttpStaticWebDir &webDir,
+void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, WHttpStaticWebDir &webDir,
                                 string &filePath, int code)
 {
     sstream << "HTTP/1.1 "<< code << " " << mg_http_status_code_str(code) << "\r\n";
@@ -483,7 +483,7 @@ bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
         return false;
     }
 
-    HttpStaticWebDir staticDir;
+    WHttpStaticWebDir staticDir;
     staticDir.dirPath = tempDir;
     staticDir.header = header;
     _staticDirVect.push_back(staticDir);
@@ -534,7 +534,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         return;
     }
 
-    HttpCbMsg *cbMsg = (HttpCbMsg *)cbData;
+    WHttpServerCbMsg *cbMsg = (WHttpServerCbMsg *)cbData;
     int64_t fd = (int64_t)conn->fd;
     if (msgType == MG_EV_ACCEPT && cbMsg->httpsFlag)
     {
@@ -564,7 +564,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             return;
         }
 
-        HttpApiData cbApiData;
+        WHttpServerApiData cbApiData;
         if (!findHttpCbFun(httpCbData, cbApiData))
         {
             if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0)
@@ -600,7 +600,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     else if (msgType == MG_EV_HTTP_CHUNK)
     {
         struct mg_http_message *httpCbData = (struct mg_http_message *) msgData;
-        HttpApiData chunkCbApiData;
+        WHttpServerApiData chunkCbApiData;
         if (!findChunkHttpCbFun(httpCbData, chunkCbApiData))
         {
             return;
@@ -656,7 +656,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     }
 }
 
-void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData httpCbData)
+void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData httpCbData)
 {
     if (httpCbData.findStaticFileFlag)
     {
@@ -703,7 +703,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData htt
     }
 }
 
-void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, HttpApiData chunkHttpCbData)
+void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData chunkHttpCbData)
 {
     if (_httpFilterFun && !_httpFilterFun(httpMsg))
     {
@@ -770,7 +770,7 @@ shared_ptr<string> WHttpServer::deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMs
     return shared_ptr<string>(sendMsg);
 }
 
-bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, HttpApiData &cbApiData)
+bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData)
 {
     bool res = false;
     for (auto it = _chunkHttpApiMap.begin(); it != _chunkHttpApiMap.end(); it++)
@@ -817,7 +817,7 @@ bool WHttpServer::isValidHttpChunk(mg_http_message *httpCbData)
     return res;
 }
 
-bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, HttpApiData &cbApiData)
+bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData)
 {
     bool res = false;
     for (auto it = _httpApiMap.begin(); it != _httpApiMap.end(); it++)
@@ -986,7 +986,7 @@ void WHttpServer::toUpperString(string &str)
 
 void WHttpServer::recvHttpRequestCallback(mg_connection *conn, int msgType, void *msgData, void *cbData)
 {
-    HttpCbMsg *cbMsg = (HttpCbMsg *)cbData;
+    WHttpServerCbMsg *cbMsg = (WHttpServerCbMsg *)cbData;
     cbMsg->httpServer->recvHttpRequest(conn, msgType, msgData, cbData);
 }
 
