@@ -695,6 +695,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiD
         set<string> methods = getSupportMethods(httpCbData.httpMethods);
         if (methods.find(httpMsg->method) == methods.end())
         {
+            WLogw("WHttpServer::handleHttpMsg wrong http method: %s, uri: %s", httpMsg->method.c_str(), httpMsg->uri.c_str());
             httpReplyJson(httpMsg, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
             closeHttpConnection(httpMsg->httpConnection);
             return;
