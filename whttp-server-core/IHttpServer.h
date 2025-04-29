@@ -80,7 +80,7 @@ public:
     virtual void forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body) = 0;
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len) = 0; // data需要外部delete
-    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, shared_ptr<string> &sendMsg) = 0; // sendMsg不需要外部delete
+    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, shared_ptr<string> &sendMsg) = 0;
     virtual string formJsonBody(int code, string message) = 0;
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg) = 0;
