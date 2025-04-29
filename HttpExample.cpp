@@ -27,8 +27,6 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
     _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
     _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
-    _httpServer->startHttp(6200);
-    // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
@@ -44,6 +42,9 @@ void HttpExample::start()
 
     TimerEventFun timerFun = std::bind(&HttpExample::timerEvent, this);
     _timerId = _httpServer->addTimerEvent(2000, timerFun);
+
+    _httpServer->startHttp(6200);
+    // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
 }
 
 /*
@@ -57,7 +58,7 @@ bool HttpExample::httpFilter(shared_ptr<HttpReqMsg> &httpMsg)
 
 void HttpExample::handleHttpRequestTest(shared_ptr<HttpReqMsg> &httpMsg)
 {
-    // You can add http headers like below
+    // You can add http headers like following code
     stringstream sstream;
     sstream << "Access-Control-Allow-Origin: *" << "\r\n";
     _httpServer->httpReplyJson(httpMsg, 200, sstream.str(), _httpServer->formJsonBody(0, "success"));
@@ -278,7 +279,8 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
             continue;
         }
 
-        string *fileStr = new string();
+        // new了内存之后，外部不需要delete，httpServer内部会delete
+        shared_ptr<string> fileStr = shared_ptr<string>(new string());
         fileStr->resize(perReadSize);
 
         int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
@@ -297,7 +299,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
             fileStr->resize(readSize);
         }
 
-        // 再发送具体的文件数据给客户端
+        // 再发送具体的文件数据给客户端，fileStr的内存内部会delete
         _httpServer->addSendMsgToQueue(httpMsg, fileStr);
     }
 

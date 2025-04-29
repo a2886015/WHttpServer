@@ -361,7 +361,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
             continue;
         }
 
-        string *fileStr = new string();
+        shared_ptr<string> fileStr = shared_ptr<string>(new string());
         fileStr->resize(perReadSize);
 
         int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
@@ -370,7 +370,6 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         if (readSize == 0)
         {
             WLogw("WHttpServer::readStaticWebFile read size is 0");
-            delete fileStr;
             break;
         }
 
@@ -442,14 +441,14 @@ void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, st
 
 void WHttpServer::addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char *data, int len)
 {
-    string *sendMsg = new string();
+    shared_ptr<string> sendMsg = shared_ptr<string>(new string());
     sendMsg->resize(len);
     memcpy((char *)sendMsg->c_str(), data, len);
     bool res = httpMsg->sendQueue->enQueue(sendMsg);
     assert(res);
 }
 
-void WHttpServer::addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg)
+void WHttpServer::addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, shared_ptr<string> &sendMsg)
 {
     bool res = httpMsg->sendQueue->enQueue(sendMsg);
     assert(res);
@@ -472,9 +471,9 @@ bool WHttpServer::isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg)
 
 shared_ptr<string> WHttpServer::deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg)
 {
-    string *res = nullptr;
+    shared_ptr<string> res = nullptr;
     httpMsg->chunkQueue->deQueue(res);
-    return shared_ptr<string>(res);
+    return res;
 }
 
 bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
@@ -775,9 +774,9 @@ void WHttpServer::sendHttpMsgPoll()
 
 shared_ptr<string> WHttpServer::deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMsg)
 {
-    string *sendMsg = nullptr;
+    shared_ptr<string> sendMsg = nullptr;
     httpMsg->sendQueue->deQueue(sendMsg);
-    return shared_ptr<string>(sendMsg);
+    return sendMsg;
 }
 
 bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData)
@@ -928,7 +927,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     if (chunkFlag)
     {
         res->chunkQueue = shared_ptr<HttpChunkQueue>(new HttpChunkQueue());
-        string *chunk = new string();
+        shared_ptr<string> chunk = shared_ptr<string>(new string());
         chunk->resize(httpCbData->chunk.len);
         memcpy((char*)chunk->c_str(), httpCbData->chunk.ptr, httpCbData->chunk.len);
         conn->recv.len -= httpCbData->chunk.len;
@@ -947,7 +946,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
 
 void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData)
 {
-    string *chunk = new string();
+    shared_ptr<string> chunk = shared_ptr<string>(new string());
     chunk->resize(httpCbData->chunk.len);
     memcpy((char*)chunk->c_str(), httpCbData->chunk.ptr, httpCbData->chunk.len);
     httpMsg->httpConnection->recv.len -= httpCbData->chunk.len;
@@ -965,16 +964,14 @@ void WHttpServer::releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg)
 {
     while (httpMsg->chunkQueue.get() && httpMsg->chunkQueue->size() > 0)
     {
-        string *res = nullptr;
+        shared_ptr<string> res = nullptr;
         httpMsg->chunkQueue->deQueue(res);
-        delete res;
     }
 
     while (httpMsg->sendQueue.get() && httpMsg->sendQueue->size() > 0)
     {
-        string *res = nullptr;
+        shared_ptr<string> res = nullptr;
         httpMsg->sendQueue->deQueue(res);
-        delete res;
     }
 }
 

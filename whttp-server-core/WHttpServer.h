@@ -61,7 +61,7 @@ public:
     virtual void forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg);
     virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body);
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len);
-    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg);
+    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, shared_ptr<string> &sendMsg);
     virtual string formJsonBody(int code, string message);
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg);
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg);

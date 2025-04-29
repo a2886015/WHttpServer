@@ -24,8 +24,8 @@ using namespace std;
 #define W_HTTP_OPTIONS  (1 << 5)
 #define W_HTTP_ALL      0xFF
 
-using HttpChunkQueue = LockQueue<string *>;
-using HttpSendQueue = LockQueue<string *>;
+using HttpChunkQueue = LockQueue<shared_ptr<string>>;
+using HttpSendQueue = LockQueue<shared_ptr<string>>;
 
 #ifdef WIN32
     #define strcasecmp _stricmp
@@ -80,7 +80,7 @@ public:
     virtual void forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual void httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body) = 0;
     virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, const char* data, int len) = 0; // data需要外部delete
-    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, string *sendMsg) = 0; // sendMsg不需要外部delete
+    virtual void addSendMsgToQueue(shared_ptr<HttpReqMsg> httpMsg, shared_ptr<string> &sendMsg) = 0; // sendMsg不需要外部delete
     virtual string formJsonBody(int code, string message) = 0;
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg) = 0;
