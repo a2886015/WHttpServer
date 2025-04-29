@@ -25,8 +25,9 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Origin: *" << "\r\n";
     sstream << "Access-Control-Allow-Methods: GET, PUT, POST, DELETE, OPTIONS" << "\r\n";
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
-    _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
-    _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
+    _httpServer->addStaticWebDir("../web", sstream.str());
+    // _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
+    // _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
@@ -44,7 +45,7 @@ void HttpExample::start()
     _timerId = _httpServer->addTimerEvent(2000, timerFun);
 
     _httpServer->startHttp(6200);
-    // _httpServer->startHttps(6443, "/cert/server.cert", "/cert/server.key");
+    // _httpServer->startHttps(6443, "../cert/server.cert", "../cert/server.key");
 }
 
 /*
