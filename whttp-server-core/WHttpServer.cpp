@@ -38,8 +38,8 @@ bool WHttpServer::init(int maxEventThreadNum, WThreadPool *threadPool)
     {
         _selfThreadPoolFlag = true;
         _threadPool = new WThreadPool();
-        _threadPool->setMaxThreadNum(maxEventThreadNum);
     }
+    _threadPool->setMaxThreadNum(maxEventThreadNum);
 
     return true;
 }
