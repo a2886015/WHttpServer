@@ -15,9 +15,9 @@ WHttpServer::WHttpServer(mg_mgr *mgr)
 WHttpServer::~WHttpServer()
 {
     deleteAllTimerEvent();
+    stop();
     if (_selfMgrFlag)
     {
-        stop();
         mg_mgr_free(_mgr);
         delete _mgr;
         _mgr = nullptr;
