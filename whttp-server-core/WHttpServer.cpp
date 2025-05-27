@@ -222,6 +222,11 @@ std::set<string> WHttpServer::getSupportMethods(int httpMethods)
         methodsSet.insert("OPTIONS");
     }
 
+    if (httpMethods & W_HTTP_PATCH)
+    {
+        methodsSet.insert("PATCH");
+    }
+
     return methodsSet;
 }
 
