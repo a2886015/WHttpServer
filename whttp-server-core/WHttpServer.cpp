@@ -233,7 +233,7 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
     if (!file)
     {
         // Logw("WHttpServer::handleStaticWebDir can not open file:%s", filePath.c_str());
-        // httpReplyJson(httpMsg, 500, "", formJsonBody(101, "can not find this file"));
+        // httpReplyJson(httpMsg, 400, "", formJsonBody(101, "can not find this file"));
         return false;
     }
 
@@ -567,7 +567,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         logHttpRequestMsg(conn, httpCbData);
         if (httpCbData->head.len > HTTP_MAX_HEAD_SIZE)
         {
-            mg_http_reply(conn, 500, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
+            mg_http_reply(conn, 400, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
             closeHttpConnection(conn, true);
             return;
         }
@@ -578,7 +578,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0)
                  && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
             {
-                mg_http_reply(conn, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+                mg_http_reply(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
                 closeHttpConnection(conn, true);
                 return;
             }
@@ -616,7 +616,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
 
         if (httpCbData->head.len > HTTP_MAX_HEAD_SIZE)
         {
-            mg_http_reply(conn, 500, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
+            mg_http_reply(conn, 400, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
             closeHttpConnection(conn, true);
             return;
         }
@@ -680,7 +680,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiD
 
         if (!findFlag)
         {
-            httpReplyJson(httpMsg, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
+            httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
         }
     }
     else
@@ -695,7 +695,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiD
         if (methods.find(httpMsg->method) == methods.end())
         {
             WLogw("WHttpServer::handleHttpMsg wrong http method: %s, uri: %s", httpMsg->method.c_str(), httpMsg->uri.c_str());
-            httpReplyJson(httpMsg, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+            httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
             closeHttpConnection(httpMsg->httpConnection);
             return;
         }
@@ -723,7 +723,7 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServe
     set<string> methods = getSupportMethods(chunkHttpCbData.httpMethods);
     if (methods.find(httpMsg->method) == methods.end())
     {
-        httpReplyJson(httpMsg, 500, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
+        httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
         closeHttpConnection(httpMsg->httpConnection);
         return;
     }
