@@ -840,6 +840,7 @@ bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData 
         {
             continue;
         }
+
         size_t cmpSize = it->first.size();
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
