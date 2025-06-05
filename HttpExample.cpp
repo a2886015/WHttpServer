@@ -26,8 +26,8 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Methods: GET, PUT, POST, DELETE, OPTIONS" << "\r\n";
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
     _httpServer->addStaticWebDir("../web", sstream.str());
-    // _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
-    // _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
+//    _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
+//    _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
@@ -136,7 +136,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
     }
     else if (!successFlag && !errMsg.empty())
     {
-        _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(HTTP_UPLOAD_FAIL, errMsg));
+        _httpServer->httpReplyJson(httpMsg, 400, "", _httpServer->formJsonBody(HTTP_UPLOAD_FAIL, errMsg));
     }
 }
 
@@ -239,7 +239,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     if (!file)
     {
         WLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
-        _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(101, "can not open file"));
+        _httpServer->httpReplyJson(httpMsg, 400, "", _httpServer->formJsonBody(101, "can not open file"));
         return;
     }
 
@@ -317,7 +317,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     if (!file)
     {
         WLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
-        _httpServer->httpReplyJson(httpMsg, 500, "", _httpServer->formJsonBody(101, "can not open file"));
+        _httpServer->httpReplyJson(httpMsg, 400, "", _httpServer->formJsonBody(101, "can not open file"));
         return;
     }
 
