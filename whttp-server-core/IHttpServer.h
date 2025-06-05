@@ -22,6 +22,7 @@ using namespace std;
 #define W_HTTP_DELETE   (1 << 3)
 #define W_HTTP_HEAD     (1 << 4)
 #define W_HTTP_OPTIONS  (1 << 5)
+#define W_HTTP_PATCH    (1 << 6)
 #define W_HTTP_ALL      0xFF
 
 using HttpChunkQueue = LockQueue<shared_ptr<string>>;
