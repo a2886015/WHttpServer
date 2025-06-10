@@ -42,7 +42,7 @@ void HttpExample::start()
     _httpServer->addHttpApi("/whttpserver/chunkDownloadFile/", chunkDownloadFileCbFun, W_HTTP_GET);
 
     TimerEventFun timerFun = std::bind(&HttpExample::timerEvent, this);
-    _timerId = _httpServer->addTimerEvent(2000, timerFun);
+    _timerId = _httpServer->addTimerEvent(2000, timerFun, WTimerRunOnce);
 
     _httpServer->startHttp(6200);
     // _httpServer->startHttps(6443, "../cert/server.cert", "../cert/server.key");
@@ -220,7 +220,7 @@ bool HttpExample::parseMultipartStream(string &parseBuf, string &extraDataBuf, s
 void HttpExample::timerEvent()
 {
     WLogi("HttpExample::timerEvent enter");
-    _httpServer->deleteTimerEvent(_timerId);
+    // _httpServer->deleteTimerEvent(_timerId);
 }
 
 string HttpExample::intToHexStr(int num)

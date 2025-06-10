@@ -503,17 +503,20 @@ bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
     return true;
 }
 
-uint16_t WHttpServer::addTimerEvent(unsigned long ms, TimerEventFun timerEventFun)
+uint64_t WHttpServer::addTimerEvent(unsigned long ms, TimerEventFun timerEventFun, WTimerRunType runType)
 {
+    uint16_t timerId = _currentTimerId++;
     WTimerData *timerData = new WTimerData();
     timerData->timerFun = timerEventFun;
-    mg_timer_init(&timerData->timer, ms, MG_TIMER_REPEAT, &WHttpServer::timerEventAdapter, (void *)timerData);
-    uint16_t timerId = _currentTimerId++;
+    timerData->timeId = timerId;
+    timerData->runType = runType;
+    timerData->httpServer = this;
     _timerEventMap[timerId] = timerData;
+    mg_timer_init(&timerData->timer, ms, MG_TIMER_REPEAT, &WHttpServer::timerEventAdapter, (void *)timerData);
     return timerId;
 }
 
-bool WHttpServer::deleteTimerEvent(uint16_t timerEventId)
+bool WHttpServer::deleteTimerEvent(uint64_t timerEventId)
 {
     if (_timerEventMap.find(timerEventId) == _timerEventMap.end())
     {
@@ -1020,4 +1023,8 @@ void WHttpServer::timerEventAdapter(void *ptr)
 {
     WTimerData *timerData = static_cast<WTimerData *>(ptr);
     (timerData->timerFun)();
+    if (timerData->runType == WTimerRunOnce)
+    {
+        timerData->httpServer->deleteTimerEvent(timerData->timeId);
+    }
 }

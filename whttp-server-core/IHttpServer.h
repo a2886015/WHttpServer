@@ -60,6 +60,12 @@ struct HttpReqMsg
    int64_t lastKeepAliveTime = 0;
 };
 
+enum WTimerRunType
+{
+    WTimerRunRepeat,
+    WTimerRunOnce
+};
+
 using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>;
 using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>;
 using TimerEventFun = std::function<void()>;
@@ -86,7 +92,7 @@ public:
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg) = 0;
     virtual bool addStaticWebDir(const string &dir, const string &header = "") = 0;
-    virtual uint16_t addTimerEvent(unsigned long ms, TimerEventFun timerEventFun) = 0;
-    virtual bool deleteTimerEvent(uint16_t timerEventId) = 0;
+    virtual uint64_t addTimerEvent(unsigned long ms, TimerEventFun timerEventFun, WTimerRunType runType = WTimerRunRepeat) = 0;
+    virtual bool deleteTimerEvent(uint64_t timerEventId) = 0;
     virtual bool deleteAllTimerEvent() = 0;
 };
