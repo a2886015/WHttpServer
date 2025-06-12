@@ -28,6 +28,8 @@ private:
     void timerEvent();
 
     static string intToHexStr(int num);
+    static std::string urlEncode(const std::string& value);
+    static std::string urlDecode(const std::string& value);
 
     uint16_t _timerId = 0;
 };

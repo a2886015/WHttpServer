@@ -1,4 +1,7 @@
 #include "HttpExample.h"
+#include <cctype>
+#include <sstream>
+#include <iomanip>
 
 HttpExample::HttpExample()
 {
@@ -26,8 +29,8 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Methods: GET, PUT, POST, DELETE, OPTIONS" << "\r\n";
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
     _httpServer->addStaticWebDir("../web", sstream.str());
-//    _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
-//    _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
+    //    _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
+    //    _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
@@ -230,10 +233,57 @@ string HttpExample::intToHexStr(int num)
     return data;
 }
 
+string HttpExample::urlEncode(const string &value)
+{
+    std::ostringstream escaped;
+    escaped.fill('0');
+    escaped << std::hex;
+
+    for (char c : value) {
+        // 不需要编码的字符: 字母、数字、连字符、下划线、点、波浪线
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            escaped << c;
+            continue;
+        }
+
+        // 空格转换为 '+'
+        if (c == ' ') {
+            escaped << '+';
+            continue;
+        }
+
+        // 其他字符转换为 %HH 格式
+        escaped << '%' << std::setw(2) << int((unsigned char)c);
+    }
+
+    return escaped.str();
+}
+
+string HttpExample::urlDecode(const string &value)
+{
+    std::string result;
+    for (size_t i = 0; i < value.length(); ++i) {
+        if (value[i] == '+') {
+            result += ' ';
+        } else if (value[i] == '%' && i + 2 < value.length()) {
+            // 解码 %HH 格式
+            std::string hex = value.substr(i + 1, 2);
+            char c = static_cast<char>(std::stoi(hex, nullptr, 16));
+            result += c;
+            i += 2;
+        } else {
+            result += value[i];
+        }
+    }
+    return result;
+}
+
 void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 {
     string fileName = httpMsg->uri.substr(strlen("/whttpserver/downloadFile/"));
+    fileName = urlDecode(fileName);
     string filePath = "/data/" + fileName;
+    string encodedFileName = urlEncode(fileName);
 
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
@@ -251,7 +301,9 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     stringstream sstream;
     sstream << "HTTP/1.1 200 " << mg_http_status_code_str(200) << "\r\n";
     sstream << "Content-Type: binary/octet-stream\r\n";
-    sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
+    // sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
+    // 防止名字有中文名，需要使用下面的标准
+    sstream << R"(Content-Disposition: attachment; filename=")" << encodedFileName << R"("; filename*=utf-8'')" << encodedFileName << "\r\n";
     sstream << "Content-Length: " << fileSize << "\r\n\r\n"; // 空行表示http头部完成
     _httpServer->addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
 
@@ -311,7 +363,9 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 {
     string fileName = httpMsg->uri.substr(strlen("/whttpserver/chunkDownloadFile/"));
+    fileName = urlDecode(fileName);
     string filePath = "/data/" + fileName;
+    string encodedFileName = urlEncode(fileName);
 
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
@@ -329,7 +383,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     stringstream sstream;
     sstream << "HTTP/1.1 200 " << mg_http_status_code_str(200) << "\r\n";
     sstream << "Content-Type: " << guess_content_type(fileName.c_str()) << "\r\n";
-    sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
+    sstream << R"(Content-Disposition: attachment; filename=")" << encodedFileName << R"("; filename*=utf-8'')" << encodedFileName << "\r\n";
     sstream << "Transfer-Encoding: chunked" << "\r\n"; // chunk下载头部需要添加这个字段，没有Content-Length
     sstream << "\r\n"; // 空行表示http头部完成
     _httpServer->addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
