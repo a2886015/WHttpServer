@@ -134,6 +134,7 @@ bool WHttpServer::run(int timeoutMs)
         sendHttpMsgPoll();
     }
 
+    delTimerIdPoll();
     mg_mgr_poll(_mgr, timeoutMs);
     return true;
 }
@@ -304,7 +305,7 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
 }
 
 void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, WHttpStaticWebDir &webDir,
-                                string &filePath, int code)
+                                            string &filePath, int code)
 {
     sstream << "HTTP/1.1 "<< code << " " << mg_http_status_code_str(code) << "\r\n";
     sstream << "Content-Type: " << guess_content_type(filePath.c_str()) << "\r\n";
@@ -422,8 +423,9 @@ void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCb
     }
     else
     {
-        char msg[1024] = {0};
+        char msg[1025] = {0};
         memcpy(msg, httpCbData->message.ptr, 1024);
+        msg[1024] = '\0';
         WLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 1024 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
 }
@@ -525,8 +527,8 @@ bool WHttpServer::deleteTimerEvent(uint64_t timerEventId)
 
     WTimerData *timerData = _timerEventMap[timerEventId];
     mg_timer_free(&timerData->timer);
-    delete timerData;
     _timerEventMap.erase(timerEventId);
+    delete timerData;
     return true;
 }
 
@@ -541,6 +543,11 @@ bool WHttpServer::deleteAllTimerEvent()
     }
 
     return true;
+}
+
+void WHttpServer::addWillDelTimerIdSet(int64_t timeId)
+{
+    _willDelTimerIdSet.insert(timeId);
 }
 
 void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgData, void *cbData)
@@ -584,7 +591,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         if (!findHttpCbFun(httpCbData, cbApiData))
         {
             if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0)
-                 && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
+                    && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
             {
                 mg_http_reply(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
                 closeHttpConnection(conn, true);
@@ -777,6 +784,14 @@ void WHttpServer::sendHttpMsgPoll()
             conn->is_draining = 1;
             // continue;
         }
+    }
+}
+
+void WHttpServer::delTimerIdPoll()
+{
+    for(auto it = _willDelTimerIdSet.begin(); it != _willDelTimerIdSet.end(); ++it)
+    {
+        deleteTimerEvent(*it);
     }
 }
 
@@ -1025,6 +1040,6 @@ void WHttpServer::timerEventAdapter(void *ptr)
     (timerData->timerFun)();
     if (timerData->runType == WTimerRunOnce)
     {
-        timerData->httpServer->deleteTimerEvent(timerData->timeId);
+        timerData->httpServer->addWillDelTimerIdSet(timerData->timeId);
     }
 }
