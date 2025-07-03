@@ -134,7 +134,7 @@ bool WHttpServer::run(int timeoutMs)
         sendHttpMsgPoll();
     }
 
-    delTimerIdPoll();
+    loopEventPoll();
     mg_mgr_poll(_mgr, timeoutMs);
     return true;
 }
@@ -505,7 +505,7 @@ bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
     return true;
 }
 
-uint64_t WHttpServer::addTimerEvent(unsigned long ms, TimerEventFun timerEventFun, WTimerRunType runType)
+uint64_t WHttpServer::addTimerEvent(unsigned long ms, WTimerEventFun timerEventFun, WTimerRunType runType)
 {
     uint16_t timerId = _currentTimerId++;
     WTimerData *timerData = new WTimerData();
@@ -543,11 +543,6 @@ bool WHttpServer::deleteAllTimerEvent()
     }
 
     return true;
-}
-
-void WHttpServer::addWillDelTimerIdSet(int64_t timeId)
-{
-    _willDelTimerIdSet.insert(timeId);
 }
 
 void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgData, void *cbData)
@@ -787,11 +782,13 @@ void WHttpServer::sendHttpMsgPoll()
     }
 }
 
-void WHttpServer::delTimerIdPoll()
+void WHttpServer::loopEventPoll()
 {
-    for(auto it = _willDelTimerIdSet.begin(); it != _willDelTimerIdSet.end(); ++it)
+    while(!_loopFunQueue.empty())
     {
-        deleteTimerEvent(*it);
+        WHttpLoopFun loopFun = _loopFunQueue.front();
+        _loopFunQueue.pop();
+        loopFun();
     }
 }
 
@@ -1040,6 +1037,7 @@ void WHttpServer::timerEventAdapter(void *ptr)
     (timerData->timerFun)();
     if (timerData->runType == WTimerRunOnce)
     {
-        timerData->httpServer->addWillDelTimerIdSet(timerData->timeId);
+        WHttpLoopFun loopFun = std::bind(&WHttpServer::deleteTimerEvent, timerData->httpServer, timerData->timeId);
+        timerData->httpServer->_loopFunQueue.push(loopFun);
     }
 }

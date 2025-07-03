@@ -44,7 +44,7 @@ void HttpExample::start()
     HttpCbFun chunkDownloadFileCbFun = std::bind(&HttpExample::handleHttpChunkDownloadFile, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/chunkDownloadFile/", chunkDownloadFileCbFun, W_HTTP_GET);
 
-    TimerEventFun timerFun = std::bind(&HttpExample::timerEvent, this);
+    WTimerEventFun timerFun = std::bind(&HttpExample::timerEvent, this);
     _timerId = _httpServer->addTimerEvent(2000, timerFun, WTimerRunOnce);
 
     _httpServer->startHttp(6200);

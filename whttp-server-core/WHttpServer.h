@@ -5,6 +5,7 @@
 #include <vector>
 #include <time.h>
 #include <atomic>
+#include <queue>
 
 #define HTTP_SEND_QUEUE_SIZE 3
 #define SEND_BUF_SIZE_BOUNDARY (3 * 1024 * 1024)
@@ -41,11 +42,13 @@ struct WHttpStaticWebDir
 struct WTimerData
 {
     mg_timer timer;
-    TimerEventFun timerFun;
+    WTimerEventFun timerFun;
     WTimerRunType runType;
     WHttpServer *httpServer = nullptr;
     int64_t timeId = 0;
 };
+
+using WHttpLoopFun = std::function<void ()>;
 
 class WHttpServer: public IHttpServer
 {
@@ -69,7 +72,7 @@ public:
     virtual bool isClientDisconnect(shared_ptr<HttpReqMsg> httpMsg);
     virtual shared_ptr<string> deQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg);
     virtual bool addStaticWebDir(const string &dir, const string &header = "");
-    virtual uint64_t addTimerEvent(unsigned long ms, TimerEventFun timerEventFun, WTimerRunType runType = WTimerRunRepeat);
+    virtual uint64_t addTimerEvent(unsigned long ms, WTimerEventFun timerEventFun, WTimerRunType runType = WTimerRunRepeat);
     virtual bool deleteTimerEvent(uint64_t timerEventId);
     virtual bool deleteAllTimerEvent();
 
@@ -98,13 +101,13 @@ private:
     std::atomic<int> _currentKeepAliveNum {0};
     uint64_t _currentTimerId = 1;
     std::map<uint64_t, WTimerData*> _timerEventMap;
-    std::set<uint64_t> _willDelTimerIdSet;
+    std::queue<WHttpLoopFun> _loopFunQueue;
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData httpCbData);
     void handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData chunkHttpCbData);
     void sendHttpMsgPoll();
-    void delTimerIdPoll();
+    void loopEventPoll();
     shared_ptr<string> deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMsg);
     bool findHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData);
     bool findChunkHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData);
@@ -122,7 +125,6 @@ private:
     void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);
     void reset();
     void logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData);
-    void addWillDelTimerIdSet(int64_t timeId);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     static uint64_t getSysTickCountInMilliseconds();
