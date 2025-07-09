@@ -44,10 +44,13 @@ void WThreadPool::setMaxThreadNum(int maxNum)
 bool WThreadPool::waitForDone(int waitMs)
 {
     int waitedMs = 0;
+    auto startTime = std::chrono::steady_clock::now();
     while(_busyThreadNum != 0 || !_eventQueue.empty())
     {
-        this_thread::sleep_for(chrono::milliseconds(1));
-        waitedMs++;
+        this_thread::sleep_for(chrono::milliseconds(5));
+        auto currentTime = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime);
+        waitedMs = duration.count();
         if (waitMs > 0 && waitedMs >= waitMs)
         {
             return false;
@@ -139,7 +142,7 @@ void WThreadPool::managerThread()
     {
         {
             unique_lock<mutex> locker(_mgrMutex);
-            auto now = std::chrono::system_clock::now();
+            auto now = std::chrono::steady_clock::now();
             if (((int)_workThreadList.size() >= _maxThreadNum ||
                  _eventQueue.size() < ((int)_workThreadList.size() - _busyThreadNum - ADD_THREAD_BOUNDARY)) && !_exitAllFlag)
             {
