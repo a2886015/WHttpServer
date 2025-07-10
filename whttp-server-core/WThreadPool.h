@@ -29,6 +29,8 @@ class WThreadPool
 public:
     WThreadPool();
     virtual ~WThreadPool();
+    WThreadPool(const WThreadPool &) = delete;
+    WThreadPool& operator=(const WThreadPool &) = delete;
 
     static WThreadPool * globalInstance();
 
@@ -105,11 +107,6 @@ private:
 
     static std::shared_ptr<WThreadPool> s_threadPool;
     static std::mutex s_globleMutex;
-
-    WThreadPool(const WThreadPool &) = delete;
-    WThreadPool(WThreadPool &&) = delete;
-    WThreadPool& operator=(const WThreadPool &) = delete;
-    WThreadPool& operator=(WThreadPool &&) = delete;
 
     void enQueueEvent(EventFun fun);
     EventFun  deQueueEvent();
