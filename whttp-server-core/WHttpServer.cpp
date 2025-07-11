@@ -606,7 +606,6 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             _workingMsgMap.erase(fd);
             httpMsg = parseHttpMsg(conn, httpCbData);
             httpMsg->isKeepingAlive = true;
-            _workingMsgMap[fd] = httpMsg;
         }
         else
         {
