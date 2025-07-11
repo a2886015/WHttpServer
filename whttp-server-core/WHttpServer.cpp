@@ -966,6 +966,15 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
 
 void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData)
 {
+    /*
+     * 由于我对mongoose源码1571行左右的修改，导致最后进入MG_EV_HTTP_MSG时，也会额外触发MG_EV_HTTP_CHUNK，
+     * 这次chunk.len为0，最好不要让上层感知这个，所以添加这个条件
+     */
+    if (httpCbData->chunk.len == 0)
+    {
+        return;
+    }
+
     shared_ptr<string> chunk = shared_ptr<string>(new string());
     chunk->resize(httpCbData->chunk.len);
     memcpy((char*)chunk->c_str(), httpCbData->chunk.ptr, httpCbData->chunk.len);
