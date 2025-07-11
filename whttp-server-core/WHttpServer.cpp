@@ -48,13 +48,13 @@ bool WHttpServer::startHttp(int port)
 {
     if (!_threadPool)
     {
-        WLogw("WHttpServer::StartHttp do not init");
+        HLogw("WHttpServer::StartHttp do not init");
         return false;
     }
 
     if (_httpPort != -1)
     {
-        WLogw("WHttpServer::StartHttp http server is already start port:%d", _httpPort);
+        HLogw("WHttpServer::StartHttp http server is already start port:%d", _httpPort);
         return false;
     }
     std::stringstream sstream;
@@ -64,10 +64,10 @@ bool WHttpServer::startHttp(int port)
     _httpServerConn= mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
     if (!_httpServerConn)
     {
-        WLogw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
+        HLogw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
         return false;
     }
-    WLogi("WHttpServer::StartHttp http server start success: %s", sstream.str().c_str());
+    HLogi("WHttpServer::StartHttp http server start success: %s", sstream.str().c_str());
     _httpPort = port;
     return true;
 }
@@ -76,13 +76,13 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
 {
     if (!_threadPool)
     {
-        WLogw("WHttpServer::StartHttps do not init");
+        HLogw("WHttpServer::StartHttps do not init");
         return false;
     }
 
     if (_httpsPort != -1)
     {
-        WLogw("WHttpServer::StartHttps https server is already start port:%d", _httpsPort);
+        HLogw("WHttpServer::StartHttps https server is already start port:%d", _httpsPort);
         return false;
     }
     _certPath = certPath;
@@ -94,10 +94,10 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
     _httpsServerConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
     if (!_httpsServerConn)
     {
-        WLogw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
+        HLogw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
         return false;
     }
-    WLogi("WHttpServer::StartHttps https server start success: %s", sstream.str().c_str());
+    HLogi("WHttpServer::StartHttps https server start success: %s", sstream.str().c_str());
     _httpsPort = port;
     return true;
 }
@@ -349,7 +349,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
     {
         if (isClientDisconnect(httpMsg))
         {
-            WLogw("WHttpServer::readStaticWebFile http client close the connection actively");
+            HLogw("WHttpServer::readStaticWebFile http client close the connection actively");
             break;
         }
 
@@ -359,7 +359,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
             currentMs = getSysTickCountInMilliseconds();
             if (currentMs - lastWriteMs > MAX_DOWNLOAD_PAUSE_TIME * 1000)
             {
-                WLogi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
+                HLogi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
                 forceCloseHttpConnection(httpMsg);
                 return;
             }
@@ -375,7 +375,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         currentReadSize += readSize;
         if (readSize == 0)
         {
-            WLogw("WHttpServer::readStaticWebFile read size is 0");
+            HLogw("WHttpServer::readStaticWebFile read size is 0");
             break;
         }
 
@@ -419,14 +419,14 @@ void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCb
 {
     if (httpCbData->message.len < 1024)
     {
-        WLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
+        HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
     }
     else
     {
         char msg[1025] = {0};
         memcpy(msg, httpCbData->message.ptr, 1024);
         msg[1024] = '\0';
-        WLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 1024 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
+        HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 1024 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
 }
 
@@ -488,13 +488,13 @@ bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
     char tempDir[PATH_MAX];
     if (!realpath(dir.c_str(), tempDir))
     {
-        WLoge("WHttpServer::addStaticWebDir the dir path is wrong: %s", dir.c_str());
+        HLoge("WHttpServer::addStaticWebDir the dir path is wrong: %s", dir.c_str());
         return false;
     }
 
     if (!mg_is_dir(tempDir))
     {
-        WLoge("WHttpServer::addStaticWebDir is not dir: %s", dir.c_str());
+        HLoge("WHttpServer::addStaticWebDir is not dir: %s", dir.c_str());
         return false;
     }
 
@@ -563,7 +563,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         opts.ciphers = nullptr;
         opts.srvname.ptr = nullptr;
         opts.srvname.len = 0;
-        WLogi("WHttpServer::recvHttpRequest https connect come id:%ld", conn->id);
+        HLogi("WHttpServer::recvHttpRequest https connect come id:%ld", conn->id);
         mg_tls_init(conn, &opts);
     }
     else if (msgType == MG_EV_HTTP_MSG)
@@ -645,7 +645,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     }
     else if (msgType == MG_EV_CLOSE)
     {
-        WLogi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
+        HLogi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
         if (conn->label[W_VALID_CONNECT_BIT] != 1)
         {
             return;
@@ -669,7 +669,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     else if (msgType == MG_EV_ERROR)
     {
         char *errorStr = (char *) msgData;
-        WLoge("WHttpServer::RecvHttpRequest mongoose error:%s", errorStr);
+        HLoge("WHttpServer::RecvHttpRequest mongoose error:%s", errorStr);
     }
 }
 
@@ -703,7 +703,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiD
         set<string> methods = getSupportMethods(httpCbData.httpMethods);
         if (methods.find(httpMsg->method) == methods.end())
         {
-            WLogw("WHttpServer::handleHttpMsg wrong http method: %s, uri: %s", httpMsg->method.c_str(), httpMsg->uri.c_str());
+            HLogw("WHttpServer::handleHttpMsg wrong http method: %s, uri: %s", httpMsg->method.c_str(), httpMsg->uri.c_str());
             httpReplyJson(httpMsg, 405, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "do not support this method"));
             closeHttpConnection(httpMsg->httpConnection);
             return;
@@ -940,7 +940,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     }
     else
     {
-        WLogi("WHttpServer::ParseHttpMsg request id:%ld have no content-length", conn->id);
+        HLogi("WHttpServer::ParseHttpMsg request id:%ld have no content-length", conn->id);
         res->totalBodySize = httpCbData->body.len;
     }
 

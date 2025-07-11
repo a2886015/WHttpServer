@@ -86,7 +86,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
     {
         if (!_httpServer->isRunning())
         {
-            WLogw("handleHttpBigFileUpload http server close");
+            HLogw("handleHttpBigFileUpload http server close");
             errMsg = "http server will close";
             successFlag = false;
             break;
@@ -94,7 +94,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
 
         if (_httpServer->isClientDisconnect(httpMsg))
         {
-            WLogw("handleHttpBigFileUpload http client close the connection actively");
+            HLogw("handleHttpBigFileUpload http client close the connection actively");
             successFlag = false;
             break;
         }
@@ -125,7 +125,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
         successFlag = parseMultipartStream(parseBuf, extraDataBuf, fileWriterMap, formParamsMap, filePathPrefix, errMsg);
     }
 
-    WLogi("HttpServer::HandleFormDataUpload successFlag is %d, err msg is %s", successFlag, errMsg.c_str());
+    HLogi("HttpServer::HandleFormDataUpload successFlag is %d, err msg is %s", successFlag, errMsg.c_str());
 
     for (auto it = fileWriterMap.begin(); it != fileWriterMap.end(); it++)
     {
@@ -222,7 +222,7 @@ bool HttpExample::parseMultipartStream(string &parseBuf, string &extraDataBuf, s
 
 void HttpExample::timerEvent()
 {
-    WLogi("HttpExample::timerEvent enter");
+    HLogi("HttpExample::timerEvent enter");
     // _httpServer->deleteTimerEvent(_timerId);
 }
 
@@ -288,7 +288,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
     {
-        WLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
+        HLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
         _httpServer->httpReplyJson(httpMsg, 400, "", _httpServer->formJsonBody(101, "can not open file"));
         return;
     }
@@ -321,7 +321,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     {
         if (_httpServer->isClientDisconnect(httpMsg))
         {
-            WLogw("handleHttpDownloadFile http client close the connection actively");
+            HLogw("handleHttpDownloadFile http client close the connection actively");
             break;
         }
 
@@ -343,7 +343,7 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
         currentReadSize += readSize;
         if (readSize == 0)
         {
-            WLogw("handleHttpDownloadFile read size is 0");
+            HLogw("handleHttpDownloadFile read size is 0");
             break;
         }
 
@@ -370,7 +370,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
     {
-        WLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
+        HLogw("handleHttpDownloadFile can not open file:%s", filePath.c_str());
         _httpServer->httpReplyJson(httpMsg, 400, "", _httpServer->formJsonBody(101, "can not open file"));
         return;
     }
@@ -397,7 +397,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     {
         if (_httpServer->isClientDisconnect(httpMsg))
         {
-            WLogw("handleHttpDownloadFile http client close the connection actively");
+            HLogw("handleHttpDownloadFile http client close the connection actively");
             break;
         }
 
@@ -417,7 +417,7 @@ void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
         currentReadSize += readSize;
         if (readSize == 0)
         {
-            WLogw("handleHttpDownloadFile read size is 0");
+            HLogw("handleHttpDownloadFile read size is 0");
             delete fileStr;
             break;
         }

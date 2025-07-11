@@ -12,9 +12,9 @@
 
 using namespace std;
 
-#define WLogi(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][I] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
-#define WLogw(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][W] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
-#define WLoge(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][E] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define HLogi(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][I] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define HLogw(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][W] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
+#define HLoge(fmt, ...) {time_t timep; time(&timep); struct tm *p = localtime(&timep); printf("%4d-%02d-%02d %02d:%02d:%02d [%llu][E] ", 1900+p->tm_year, 1+p->tm_mon, p->tm_mday, p-> tm_hour, p->tm_min, p->tm_sec, (unsigned long long)pthread_self());printf(fmt, ##__VA_ARGS__);printf("\n");fflush(stdout);}
 
 #define W_HTTP_GET      (1 << 0)
 #define W_HTTP_POST     (1 << 1)
