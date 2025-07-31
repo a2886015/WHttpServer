@@ -490,7 +490,7 @@ size_t mg_http_next_multipart(struct mg_str body, size_t ofs,
     ofs：开始分析的起始位置offset
     part：输出值，包括当前format-data的body体数据、文件名、属性名
     head：输出值，当前format-data的head头数据
-    extraData：输出值，分析完当前format-data后，发现这一轮数据不全，需要进入下一轮分析的额外body数据，partCompleted时有效
+    extraData：输出值，分析完当前format-data后，发现这一轮数据不全，需要进入下一轮分析的额外body数据，partCompleted为false时有效
     partCompleted：输出值，当前是否分析完了一个完整的format-data；完整的format-data包括起始boundary、head头、body体、
     结束boundary四个部分，而这个结束boundary也是下一段format-data的起始boundary
     返回值：
@@ -498,8 +498,9 @@ size_t mg_http_next_multipart(struct mg_str body, size_t ofs,
     2、返回值大于0时，根据partCompleted的值不同意义也不同。partCompleted为true时，返回值是下一段format-data的
     起始boundary位置，可以直接用这个返回值作为ofs进入下一段分析
     3、返回值大于0，partCompleted为false时，这种情况对应于body体只接收了部分，或者body体接收完成了，但是结束boundary
-    还没有接收完的情况，返回值是part->body的结束位置，或者说是（max - boundary.size - 4)位置，其中4是2个\r\n,这个时
-    候外部需要保留当前head和extraData的数据进入下一轮分析，这种情况其实返回的具体值不那么重要，重要的是part、head和extraData
+    还没有接收完的情况，返回值是part->body的结束位置，或者说是（max - boundary.size - 4)位置，这个是怕body后面已经接收了部
+    分下一轮boundary。其中4是2个\r\n,这个时候外部需要保留当前head和extraData的数据进入下一轮分析，这种情况其实返回的具体
+    值不那么重要，重要的是part、head和extraData
 */
 size_t w_mg_http_next_multipart(struct mg_str body, size_t ofs, struct mg_http_part *part, 
                                   struct mg_str *head, struct mg_str *extraData, bool *partCompleted)
