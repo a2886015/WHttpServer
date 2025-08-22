@@ -86,7 +86,7 @@ public:
     }
 
 private:
-    int _minThreadNum = WPOOL_MIN_THREAD_NUM;
+    int _minThreadNum = 4;
     int _maxThreadNum = 8;
     std::atomic<int> _busyThreadNum = {0};
     int _stepThreadNum = 4;

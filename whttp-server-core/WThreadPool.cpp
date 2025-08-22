@@ -7,6 +7,7 @@ std::mutex WThreadPool::s_globleMutex;
 
 WThreadPool::WThreadPool()
 {
+    _minThreadNum = WPOOL_MIN_THREAD_NUM;
     _mgrThread = make_shared<thread>(&WThreadPool::managerThread, this);
 }
 
