@@ -399,14 +399,14 @@ void WHttpServer::parseRangeStr(string rangeStr, int64_t &startByte, int64_t &en
     {
         return;
     }
-    startByte = stoll(rangeStr.substr(equalMarkIndex + 1, lineMarkIndex - equalMarkIndex - 1));
+    startByte = str2ll(rangeStr.substr(equalMarkIndex + 1, lineMarkIndex - equalMarkIndex - 1));
     if (lineMarkIndex == rangeStr.size() - 1)
     {
         endByte = fileSize - 1;
     }
     else
     {
-        endByte = stoll(rangeStr.substr(lineMarkIndex + 1));
+        endByte = str2ll(rangeStr.substr(lineMarkIndex + 1));
     }
 }
 
@@ -936,7 +936,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
 
     if (res->headers.find("content-length") != res->headers.end())
     {
-        res->totalBodySize = (int64_t)stoll(res->headers["content-length"]);
+        res->totalBodySize = str2ll(res->headers["content-length"]);
     }
     else
     {
@@ -1017,6 +1017,16 @@ void WHttpServer::toUpperString(string &str)
     for(int i = 0; i < (int)str.size(); i++)
     {
         str[i] = toupper(str[i]);
+    }
+}
+
+int64_t WHttpServer::str2ll(const string &str, int64_t errValue)
+{
+    try {
+        return std::stoll(str);
+    } catch (const std::exception& e) {
+        HLogw("WHttpServer::str2ll error: %s", e.what());
+        return errValue;
     }
 }
 
