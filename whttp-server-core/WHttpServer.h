@@ -79,6 +79,8 @@ public:
     static void toLowerString(string &str);
     static void toUpperString(string &str);
     static int64_t str2ll(const string &str, int64_t errValue = 0);
+    static std::string urlDecode(const std::string& input, bool isFormEncoded = false);
+    static int hexToInt(char c);
 
 private:
     volatile int _httpPort = -1;

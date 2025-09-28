@@ -48,7 +48,7 @@ void HttpExample::start()
     _timerId = _httpServer->addTimerEvent(2000, timerFun, WTimerRunOnce);
 
     _httpServer->startHttp(6200);
-    // _httpServer->startHttps(6443, "../cert/server.cert", "../cert/server.key");
+    _httpServer->startHttps(6443, "../cert/server.cert", "../cert/server.key");
 }
 
 /*
@@ -63,6 +63,10 @@ bool HttpExample::httpFilter(shared_ptr<HttpReqMsg> &httpMsg)
 void HttpExample::handleHttpRequestTest(shared_ptr<HttpReqMsg> &httpMsg)
 {
     // You can add http headers like following code
+    std::cout << "query value is: " << endl;
+    for (const auto& pair : httpMsg->querys) {
+        std::cout << pair.first << ": " << pair.second << std::endl;
+    }
     stringstream sstream;
     sstream << "Access-Control-Allow-Origin: *" << "\r\n";
     _httpServer->httpReplyJson(httpMsg, 200, sstream.str(), _httpServer->formJsonBody(0, "success"));

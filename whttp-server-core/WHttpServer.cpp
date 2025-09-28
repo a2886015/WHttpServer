@@ -898,7 +898,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
         else if(httpCbData->query.ptr[i] == '&')
         {
             valueFlag = false;
-            res->querys[queryKey] = queryValue;
+            res->querys[urlDecode(queryKey)] = urlDecode(queryValue);
             queryKey.clear();
             queryValue.clear();
             continue;
@@ -913,7 +913,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
             queryValue.append(1, httpCbData->query.ptr[i]);
         }
     }
-    res->querys[queryKey] = queryValue;
+    res->querys[urlDecode(queryKey)] = urlDecode(queryValue);
 
     res->proto.resize(httpCbData->proto.len);
     memcpy((char*)res->proto.c_str(), httpCbData->proto.ptr, httpCbData->proto.len);
@@ -1028,6 +1028,49 @@ int64_t WHttpServer::str2ll(const string &str, int64_t errValue)
         HLogw("WHttpServer::str2ll error: %s", e.what());
         return errValue;
     }
+}
+
+string WHttpServer::urlDecode(const string &input, bool isFormEncoded)
+{
+    std::string result;
+    size_t i = 0;
+    const size_t len = input.length();
+
+    while (i < len) {
+        if (input[i] == '%') {
+            if (i + 2 >= len) {  // 检查是否有足够的字符进行解码
+                return "";
+            }
+
+            // 解析两个十六进制字符
+            int hex1 = hexToInt(input[i+1]);
+            int hex2 = hexToInt(input[i+2]);
+            if (hex1 == -1 || hex2 == -1) {
+                return ""; // 无效的十六进制字符，解码失败
+            }
+
+            result += static_cast<char>((hex1 << 4) | hex2);
+            i += 3; // 跳过%XX三个字符
+        }
+        else if (isFormEncoded && input[i] == '+') { // 表单模式下，+号转为空格
+            result += ' ';
+            i++;
+        }
+        else { // 检查是否有足够的字符进行解码
+            result += input[i];
+            i++;
+        }
+    }
+
+    return result;
+}
+
+int WHttpServer::hexToInt(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
 }
 
 void WHttpServer::recvHttpRequestCallback(mg_connection *conn, int msgType, void *msgData, void *cbData)
