@@ -116,6 +116,7 @@ private:
     bool findChunkHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData);
     bool isValidHttpChunk(mg_http_message *httpCbData);
     shared_ptr<HttpReqMsg> parseHttpMsg(struct mg_connection *conn, struct mg_http_message *httpCbData, bool chunkFlag = false);
+    void parseHttpQuery(mg_http_message *httpCbData, std::map<std::string, std::string> &queryMap);
     void enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData);
     void releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg);
     void closeHttpConnection(struct mg_connection *conn, bool isDirectClose = false);

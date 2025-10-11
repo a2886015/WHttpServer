@@ -1,5 +1,7 @@
 #include "WHttpServer.h"
 #include <assert.h>
+#include <cctype>
+#include <iomanip>
 
 WHttpServer::WHttpServer(mg_mgr *mgr)
 {
@@ -885,35 +887,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     res->uri.resize(httpCbData->uri.len);
     memcpy((char*)res->uri.c_str(), httpCbData->uri.ptr, httpCbData->uri.len);
 
-    string queryKey = "";
-    string queryValue = "";
-    bool valueFlag = false;
-    for (int i = 0; i < (int)httpCbData->query.len; i++)
-    {
-        if (httpCbData->query.ptr[i] == '=')
-        {
-            valueFlag = true;
-            continue;
-        }
-        else if(httpCbData->query.ptr[i] == '&')
-        {
-            valueFlag = false;
-            res->querys[urlDecode(queryKey)] = urlDecode(queryValue);
-            queryKey.clear();
-            queryValue.clear();
-            continue;
-        }
-
-        if (!valueFlag)
-        {
-            queryKey.append(1, httpCbData->query.ptr[i]);
-        }
-        else
-        {
-            queryValue.append(1, httpCbData->query.ptr[i]);
-        }
-    }
-    res->querys[urlDecode(queryKey)] = urlDecode(queryValue);
+    parseHttpQuery(httpCbData, res->querys);
 
     res->proto.resize(httpCbData->proto.len);
     memcpy((char*)res->proto.c_str(), httpCbData->proto.ptr, httpCbData->proto.len);
@@ -962,6 +936,62 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     }
 
     return res;
+}
+
+void WHttpServer::parseHttpQuery(mg_http_message *httpCbData, std::map<std::string, std::string> &queryMap)
+{
+    if (httpCbData == nullptr || httpCbData->query.len == 0 || httpCbData->query.ptr == nullptr) {
+        return;
+    }
+
+    // 直接使用原始指针和长度，避免中间字符串拼接
+    const char* start = httpCbData->query.ptr;
+    const char* end = start + httpCbData->query.len;
+    const char* keyBegin = start;
+    const char* valBegin = nullptr;
+
+    for (const char* p = start; p < end; ++p) {
+        if (*p == '=')
+        {
+            if (valBegin == nullptr) // 只处理第一个'='，忽略后续无效的'='
+            {
+                valBegin = p + 1;
+            }
+        }
+        else if (*p == '&')
+        {
+            std::string key;
+            std::string value;
+
+            if (valBegin == nullptr) { // 没有'='的情况，视为key，value为空
+                key = urlDecode(std::string(keyBegin, p - keyBegin));
+            } else {
+                key = urlDecode(std::string(keyBegin, valBegin - keyBegin - 1));
+                value = urlDecode(std::string(valBegin, p - valBegin));
+            }
+
+            queryMap.emplace(std::move(key), std::move(value));
+
+            // 重置指针，准备下一组键值对
+            keyBegin = p + 1;
+            valBegin = nullptr;
+        }
+    }
+
+    // 处理最后一组键值对（循环结束后剩余的内容）
+    if (keyBegin < end) {
+        std::string key;
+        std::string value;
+
+        if (valBegin == nullptr) {
+            key = urlDecode(std::string(keyBegin, end - keyBegin));
+        } else {
+            key = urlDecode(std::string(keyBegin, valBegin - keyBegin - 1));
+            value = urlDecode(std::string(valBegin, end - valBegin));
+        }
+
+        queryMap.emplace(std::move(key), std::move(value));
+    }
 }
 
 void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData)
