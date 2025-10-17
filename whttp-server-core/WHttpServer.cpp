@@ -664,7 +664,14 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         while(conn->label[W_FD_STATUS_BIT] == HTTP_IN_USE)
         {
             this_thread::sleep_for(chrono::microseconds(100));
+            // 因为这个地方是可能阻塞主线程的，需要加下日志打印提示下
+            ++conn->label[W_CONNECT_TIMER_BIT];
+            if (conn->label[W_CONNECT_TIMER_BIT] == 100)
+            {
+                HLogi("WHttpServer::RecvHttpRequest wait for close id: %ld", conn->id);
+            }
         }
+
         releaseHttpReqMsg(_workingMsgMap[fd]);
         _workingMsgMap.erase(fd);
     }
@@ -940,7 +947,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
 
 void WHttpServer::parseHttpQuery(mg_http_message *httpCbData, std::map<std::string, std::string> &queryMap)
 {
-    if (httpCbData == nullptr || httpCbData->query.len == 0 || httpCbData->query.ptr == nullptr) {
+    if (!httpCbData || (httpCbData->query.len == 0) || !httpCbData->query.ptr) {
         return;
     }
 

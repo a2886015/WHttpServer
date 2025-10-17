@@ -729,6 +729,7 @@ struct mg_mgr {
 #endif
 };
 
+#define W_CONNECT_TIMER_BIT 39
 #define W_FD_STATUS_BIT 40
 #define W_CLIENT_CLOSE_BIT 41
 #define W_VALID_CONNECT_BIT 43
