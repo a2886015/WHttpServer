@@ -733,7 +733,7 @@ struct mg_mgr {
 #define W_CLIENT_CLOSE_BIT 41
 #define W_EXTERNAL_CLOSE_BIT 42
 #define W_VALID_CONNECT_BIT 43
-#define W_FD_CLOSE_CB_BIT 39
+#define W_FD_CLOSE_CB_BIT 44
 
 
 // W_FD_STATUS_BIT value define
