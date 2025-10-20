@@ -752,6 +752,7 @@ void WHttpServer::asyncCloseConnPoll()
         }
         else
         {
+            HLogi("WHttpServer::asyncCloseConnPoll close conn id: %ld", conn->id);
             int64_t fd = (int64_t)conn->fd;
             w_close_conn(conn);
             releaseHttpReqMsg(_workingMsgMap[fd]);
