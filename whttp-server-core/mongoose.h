@@ -1,4 +1,4 @@
-// Copyright (c) 2004-2013 Sergey Lyubka
+﻿// Copyright (c) 2004-2013 Sergey Lyubka
 // Copyright (c) 2013-2021 Cesanta Software Limited
 // All rights reserved
 //
@@ -729,10 +729,12 @@ struct mg_mgr {
 #endif
 };
 
-#define W_CONNECT_TIMER_BIT 39
 #define W_FD_STATUS_BIT 40
 #define W_CLIENT_CLOSE_BIT 41
+#define W_EXTERNAL_CLOSE_BIT 42
 #define W_VALID_CONNECT_BIT 43
+#define W_FD_CLOSE_CB_BIT 39
+
 
 // W_FD_STATUS_BIT value define
 #define HTTP_IN_USE  1
@@ -784,7 +786,7 @@ char *mg_straddr(struct mg_connection *, char *, size_t);
 bool mg_socketpair(int *s1, int *s2);
 bool mg_aton(struct mg_str str, struct mg_addr *addr);
 char *mg_ntoa(const struct mg_addr *addr, char *buf, size_t len);
-
+void w_close_conn(struct mg_connection *c);
 
 
 

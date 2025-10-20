@@ -96,6 +96,7 @@ private:
     WHttpServerCbMsg _httpCbMsg;
     WHttpServerCbMsg _httpsCbMsg;
     std::map<int64_t, shared_ptr<HttpReqMsg>> _workingMsgMap;
+    std::list<mg_connection *> _clientSelfCloseList;
     WThreadPool *_threadPool = nullptr;
     std::map<string, WHttpServerApiData> _httpApiMap;
     std::map<string, WHttpServerApiData> _chunkHttpApiMap;
@@ -105,11 +106,13 @@ private:
     uint64_t _currentTimerId = 1;
     std::map<uint64_t, WTimerData*> _timerEventMap;
     std::queue<WHttpLoopFun> _loopFunQueue;
+    int64_t _pollCount = 0;
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     void handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData httpCbData);
     void handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiData chunkHttpCbData);
     void sendHttpMsgPoll();
+    void asyncCloseConnPoll();
     void loopEventPoll();
     shared_ptr<string> deQueueHttpSendMsg(shared_ptr<HttpReqMsg> httpMsg);
     bool findHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData);

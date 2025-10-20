@@ -3013,13 +3013,14 @@ static void write_conn(struct mg_connection *c) {
   }
 }
 
-static void close_conn(struct mg_connection *c) {
+void close_conn(struct mg_connection *c) {
   // Unlink this connection from the list
   mg_resolve_cancel(c);
   LIST_DELETE(struct mg_connection, &c->mgr->conns, c);
   if (c == c->mgr->dns4.c) c->mgr->dns4.c = NULL;
   if (c == c->mgr->dns6.c) c->mgr->dns6.c = NULL;
   mg_call(c, MG_EV_CLOSE, NULL);
+
   // while (c->callbacks != NULL) mg_fn_del(c, c->callbacks->fn);
   LOG(LL_DEBUG, ("%lu closed", c->id));
   if (FD(c) != INVALID_SOCKET) {
@@ -3033,6 +3034,28 @@ static void close_conn(struct mg_connection *c) {
   free(c->send.buf);
   memset(c, 0, sizeof(*c));
   free(c);
+}
+
+void w_close_conn(struct mg_connection *c)
+{
+    mg_resolve_cancel(c);
+    LIST_DELETE(struct mg_connection, &c->mgr->conns, c);
+    if (c == c->mgr->dns4.c) c->mgr->dns4.c = NULL;
+    if (c == c->mgr->dns6.c) c->mgr->dns6.c = NULL;
+
+    LOG(LL_DEBUG, ("%lu closed", c->id));
+    if (FD(c) != INVALID_SOCKET) {
+      closesocket(FD(c));
+  #if MG_ARCH == MG_ARCH_FREERTOS_TCP
+      FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
+  #endif
+    }
+
+    mg_tls_free(c);
+    free(c->recv.buf);
+    free(c->send.buf);
+    memset(c, 0, sizeof(*c));
+    free(c);
 }
 
 static void setsockopts(struct mg_connection *c) {
@@ -3387,7 +3410,16 @@ void mg_mgr_poll(struct mg_mgr *mgr, int ms) {
     }
 
     if (c->is_draining && c->send.len == 0) c->is_closing = 1;
-    if (c->is_closing) close_conn(c);
+    if (c->is_closing) {
+        if (c->label[W_EXTERNAL_CLOSE_BIT] == 1) { // whttpserver的客户端链接下的特别处理
+            if (c->label[W_FD_CLOSE_CB_BIT] == 0) {
+                c->label[W_FD_CLOSE_CB_BIT] = 1;
+                mg_call(c, MG_EV_CLOSE, NULL);
+            }
+        } else {
+            close_conn(c);
+        }
+    }
   }
 }
 #endif

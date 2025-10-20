@@ -133,6 +133,7 @@ bool WHttpServer::run(int timeoutMs)
 {
     if (_httpPort != -1 || _httpsPort != -1)
     {
+        asyncCloseConnPoll();
         sendHttpMsgPoll();
     }
 
@@ -171,6 +172,7 @@ void WHttpServer::forceCloseHttpConnection(shared_ptr<HttpReqMsg> httpMsg)
 {
     mg_connection *conn = httpMsg->httpConnection;
     conn->is_closing = 1;
+    conn->label[W_FD_STATUS_BIT] = HTTP_NORMAL_CLOSE;
 }
 
 void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool isDirectClose)
@@ -180,7 +182,7 @@ void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool isDirectC
         return;
     }
 
-    if (isDirectClose)
+    if (isDirectClose) // isDirectClose为false时，需要在sendHttpMsgPoll置位is_draining
     {
         conn->is_draining = 1;
     }
@@ -655,25 +657,14 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
 
         if (conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE)
         {
+            w_close_conn(conn);
             releaseHttpReqMsg(_workingMsgMap[fd]);
             _workingMsgMap.erase(fd);
             return;
         }
 
         conn->label[W_CLIENT_CLOSE_BIT] = 1;
-        while(conn->label[W_FD_STATUS_BIT] == HTTP_IN_USE)
-        {
-            this_thread::sleep_for(chrono::microseconds(100));
-            // 因为这个地方是可能阻塞主线程的，需要加下日志打印提示下
-            ++conn->label[W_CONNECT_TIMER_BIT];
-            if (conn->label[W_CONNECT_TIMER_BIT] == 100)
-            {
-                HLogi("WHttpServer::RecvHttpRequest wait for close id: %ld", conn->id);
-            }
-        }
-
-        releaseHttpReqMsg(_workingMsgMap[fd]);
-        _workingMsgMap.erase(fd);
+        _clientSelfCloseList.push_back(conn);
     }
     else if (msgType == MG_EV_ERROR)
     {
@@ -750,12 +741,31 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServe
     closeHttpConnection(httpMsg->httpConnection);
 }
 
+void WHttpServer::asyncCloseConnPoll()
+{
+    for (auto it = _clientSelfCloseList.begin(); it != _clientSelfCloseList.end();)
+    {
+        mg_connection *conn = *it;
+        if (conn->label[W_FD_STATUS_BIT] == HTTP_IN_USE)
+        {
+            ++it;
+        }
+        else
+        {
+            int64_t fd = (int64_t)conn->fd;
+            w_close_conn(conn);
+            releaseHttpReqMsg(_workingMsgMap[fd]);
+            _workingMsgMap.erase(fd);
+            it = _clientSelfCloseList.erase(it);
+        }
+    }
+}
+
 void WHttpServer::sendHttpMsgPoll()
 {
-    static int64_t pollCount = 0;
-    pollCount++;
+    _pollCount++;
     int64_t currentTime = -1;
-    if (pollCount % 1000 == 0)
+    if (_pollCount % 1000 == 0)
     {
         currentTime = getSysTickCountInMilliseconds();
     }
@@ -884,6 +894,7 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     shared_ptr<HttpReqMsg> res = shared_ptr<HttpReqMsg>(new HttpReqMsg());
     res->httpConnection = conn;
     conn->label[W_VALID_CONNECT_BIT] = 1;
+    conn->label[W_EXTERNAL_CLOSE_BIT] = 1;
     conn->label[W_FD_STATUS_BIT] = HTTP_IN_USE;
     res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
 
