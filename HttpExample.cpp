@@ -237,57 +237,12 @@ string HttpExample::intToHexStr(int num)
     return data;
 }
 
-string HttpExample::urlEncode(const string &value)
-{
-    std::ostringstream escaped;
-    escaped.fill('0');
-    escaped << std::hex;
-
-    for (char c : value) {
-        // 不需要编码的字符: 字母、数字、连字符、下划线、点、波浪线
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-            escaped << c;
-            continue;
-        }
-
-        // 空格转换为 '+'
-        if (c == ' ') {
-            escaped << '+';
-            continue;
-        }
-
-        // 其他字符转换为 %HH 格式
-        escaped << '%' << std::setw(2) << int((unsigned char)c);
-    }
-
-    return escaped.str();
-}
-
-string HttpExample::urlDecode(const string &value)
-{
-    std::string result;
-    for (size_t i = 0; i < value.length(); ++i) {
-        if (value[i] == '+') {
-            result += ' ';
-        } else if (value[i] == '%' && i + 2 < value.length()) {
-            // 解码 %HH 格式
-            std::string hex = value.substr(i + 1, 2);
-            char c = static_cast<char>(std::stoi(hex, nullptr, 16));
-            result += c;
-            i += 2;
-        } else {
-            result += value[i];
-        }
-    }
-    return result;
-}
-
 void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 {
     string fileName = httpMsg->uri.substr(strlen("/whttpserver/downloadFile/"));
-    fileName = urlDecode(fileName);
+    fileName = WHttpServer::urlDecode(fileName);
     string filePath = "/data/" + fileName;
-    string encodedFileName = urlEncode(fileName);
+    string encodedFileName = WHttpServer::urlEncode(fileName);
 
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
@@ -367,9 +322,9 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
 {
     string fileName = httpMsg->uri.substr(strlen("/whttpserver/chunkDownloadFile/"));
-    fileName = urlDecode(fileName);
+    fileName = WHttpServer::urlDecode(fileName);
     string filePath = "/data/" + fileName;
-    string encodedFileName = urlEncode(fileName);
+    string encodedFileName = WHttpServer::urlEncode(fileName);
 
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)

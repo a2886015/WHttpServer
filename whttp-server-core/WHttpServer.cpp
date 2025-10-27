@@ -237,7 +237,7 @@ std::set<string> WHttpServer::getSupportMethods(int httpMethods)
 
 bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStaticWebDir &webDir)
 {
-    string filePath = webDir.dirPath + httpMsg->uri;
+    string filePath = webDir.dirPath + urlDecode(httpMsg->uri);
 
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
@@ -336,7 +336,9 @@ void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<Ht
     {
         sstream << webDir.header;
     }
-    // sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
+
+    // 有下面的header会强制浏览器下载文件，而web static目录要求浏览器可以解析的文件直接显示，而文件名浏览器从url中直接提取
+    // sstream << R"(Content-Disposition: attachment; filename=")" << encodedFileName << R"("; filename*=utf-8'')" << encodedFileName << "\r\n";
 }
 
 void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentSize, int64_t startByte)
@@ -1112,6 +1114,26 @@ string WHttpServer::urlDecode(const string &input, bool isFormEncoded)
     }
 
     return result;
+}
+
+string WHttpServer::urlEncode(const string &input, bool isFormEncoded)
+{
+    std::ostringstream oss;
+    oss << std::hex << std::uppercase;
+
+    for (unsigned char c : input) {
+        if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            oss << c;
+        }
+        else if (c == ' ') { // 空格处理：表单模式下转为+，否则转为%20
+            oss << (isFormEncoded ? "+" : "%20");
+        }
+        else {  // 其他字符按UTF-8字节编码为%XX
+            oss << "%" << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+        }
+    }
+
+    return oss.str();
 }
 
 int WHttpServer::hexToInt(char c)
