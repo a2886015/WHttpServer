@@ -26,6 +26,7 @@ private:
     bool parseMultipartStream(string &parseBuf, string &extraDataBuf, std::map<string, FILE *> &fileWriterMap,
                               std::map<string, string> &formParamsMap, string &filePathPrefix, string &errMsg);
     void timerEvent();
+    void readFileForDownload(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentLength, int64_t startByte);
 
     static string intToHexStr(int num);
 

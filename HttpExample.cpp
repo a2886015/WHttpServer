@@ -230,6 +230,60 @@ void HttpExample::timerEvent()
     // _httpServer->deleteTimerEvent(_timerId);
 }
 
+void HttpExample::readFileForDownload(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentSize, int64_t startByte)
+{
+    int64_t currentReadSize = 0;
+    int64_t maxPerReadSize = 1024*1024;
+    int64_t perReadSize = contentSize > maxPerReadSize ? maxPerReadSize : contentSize;
+    int64_t remainSize;
+
+    uint64_t currentMs = 0;
+    uint64_t lastWriteMs =  WHttpServer::getSysTickCountInMilliseconds();
+    fseek(file, startByte, SEEK_SET);
+    while((remainSize = contentSize - currentReadSize) > 0 && _httpServer->isRunning())
+    {
+        if (_httpServer->isClientDisconnect(httpMsg))
+        {
+            HLogw("WHttpServer::readStaticWebFile http client close the connection actively");
+            break;
+        }
+
+        // 为了防止发送队列里的数据太大，占用大量内存，当发送队列里面的数据达到一定量，先等待
+        if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
+        {
+            currentMs = WHttpServer::getSysTickCountInMilliseconds();
+            if (currentMs - lastWriteMs > MAX_DOWNLOAD_PAUSE_TIME * 1000)
+            {
+                HLogi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
+                _httpServer->forceCloseHttpConnection(httpMsg);
+                return;
+            }
+            this_thread::sleep_for(chrono::milliseconds(1));
+            continue;
+        }
+
+        shared_ptr<string> fileStr = shared_ptr<string>(new string());
+        fileStr->resize(perReadSize);
+
+        int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
+        int64_t readSize = fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
+        currentReadSize += readSize;
+        if (readSize == 0)
+        {
+            HLogw("WHttpServer::readStaticWebFile read size is 0");
+            break;
+        }
+
+        if (readSize != perReadSize)
+        {
+            fileStr->resize(readSize);
+        }
+
+        _httpServer->addSendMsgToQueue(httpMsg, fileStr);
+        lastWriteMs =  WHttpServer::getSysTickCountInMilliseconds();
+    }
+}
+
 string HttpExample::intToHexStr(int num)
 {
     char data[50] = {0};
@@ -256,67 +310,59 @@ void HttpExample::handleHttpDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)
     stat(filePath.c_str(), &statbuf);
     int64_t fileSize = statbuf.st_size;
 
+    std::stringstream sstream;
+    bool wholeDwFlag = true;
+    int64_t startByte = 0;
+    int64_t endByte = 0;
+    int64_t contentLength = fileSize;
+    if (httpMsg->headers.find("range") != httpMsg->headers.end())
+    {
+        string rangeStr = httpMsg->headers["range"];
+        WHttpServer::parseRangeStr(rangeStr, startByte, endByte, fileSize);
+        startByte = startByte < 0 ? 0 : startByte;
+        endByte = (endByte > fileSize - 1) ? (fileSize - 1) : endByte;
+        contentLength = endByte - startByte + 1;
+        contentLength = contentLength < 0 ? 0 : contentLength;
+        if (contentLength < fileSize)
+        {
+            wholeDwFlag = false;
+        }
+        else
+        {
+            contentLength = fileSize;
+        }
+    }
+
     // 先返回http头部，文件下载数据返回量太大，需要分块返回，使用的是addSendMsgToQueue函数
-    stringstream sstream;
-    sstream << "HTTP/1.1 200 " << mg_http_status_code_str(200) << "\r\n";
-    sstream << "Content-Type: binary/octet-stream\r\n";
+    if (wholeDwFlag)
+    {
+        sstream << "HTTP/1.1 200 " << mg_http_status_code_str(200) << "\r\n";
+        sstream << "Content-Type: binary/octet-stream\r\n";
+        sstream << "Connection: " << "close" << "\r\n";
+        sstream << "Content-Length: " << contentLength << "\r\n";
+    }
+    else
+    {
+        sstream << "HTTP/1.1 "<< 206 << " " << mg_http_status_code_str(206) << "\r\n";
+        sstream << "Content-Type: binary/octet-stream\r\n";
+        sstream << "Connection: " << "close" << "\r\n";
+        sstream << "Content-Range: bytes " << startByte << "-" << endByte << "/" << fileSize << "\r\n";
+        sstream << "Accept-Ranges: bytes\r\n";
+        sstream << "Content-Length: " << contentLength << "\r\n";
+    }
+
     // sstream << "Content-Disposition: attachment;filename=" << fileName << "\r\n";
     // 防止名字有中文名，需要使用下面的标准
     sstream << R"(Content-Disposition: attachment; filename=")" << encodedFileName << R"("; filename*=utf-8'')" << encodedFileName << "\r\n";
-    sstream << "Content-Length: " << fileSize << "\r\n\r\n"; // 空行表示http头部完成
+    sstream << "\r\n"; // 空行表示http头部完成
     _httpServer->addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
 
-    if (httpMsg->method == "HEAD")
+    if (httpMsg->method != "HEAD")
     {
-        return;
-    }
-
-    int64_t currentReadSize = 0;
-    int64_t maxPerReadSize = 1024*1024;
-    int64_t perReadSize = fileSize > maxPerReadSize ? maxPerReadSize : fileSize;
-    int64_t remainSize;
-
-    while((remainSize = fileSize - currentReadSize) > 0 && _httpServer->isRunning())
-    {
-        if (_httpServer->isClientDisconnect(httpMsg))
-        {
-            HLogw("handleHttpDownloadFile http client close the connection actively");
-            break;
-        }
-
-        // 为了防止发送队列里的数据太大，占用大量内存，当发送队列里面的数据达到一定量，先等待
-        if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
-        {
-            this_thread::sleep_for(chrono::milliseconds(1));;
-            continue;
-        }
-
-        // new了内存之后，外部不需要delete，httpServer内部会delete
-        shared_ptr<string> fileStr = shared_ptr<string>(new string());
-        fileStr->resize(perReadSize);
-
-        int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
-        int64_t readSize = fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
-        // std::cout << "start byte is: " << startByte << ", currentReadSize is:" << currentReadSize + readSize << ", contentLength is: " << contentLength
-        //           << ", offset is: " << currentReadSize + startByte << ", readSize is: " << readSize << endl;
-        currentReadSize += readSize;
-        if (readSize == 0)
-        {
-            HLogw("handleHttpDownloadFile read size is 0");
-            break;
-        }
-
-        if (readSize != perReadSize)
-        {
-            fileStr->resize(readSize);
-        }
-
-        // 再发送具体的文件数据给客户端，fileStr的内存内部会delete
-        _httpServer->addSendMsgToQueue(httpMsg, fileStr);
+        readFileForDownload(httpMsg, file, contentLength, startByte);
     }
 
     fclose(file);
-
 }
 
 void HttpExample::handleHttpChunkDownloadFile(shared_ptr<HttpReqMsg> &httpMsg)

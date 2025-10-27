@@ -82,6 +82,10 @@ public:
     static std::string urlDecode(const std::string& input, bool isFormEncoded = false);
     static std::string urlEncode(const std::string& input, bool isFormEncoded = false);
     static int hexToInt(char c);
+    static uint64_t getSysTickCountInMilliseconds();
+
+    // range下载时外部可以使用到，用于解析下载范围
+    static void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);
 
 private:
     volatile int _httpPort = -1;
@@ -128,14 +132,11 @@ private:
     bool handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStaticWebDir &webDir);
     void formStaticWebDirResHeader(stringstream &sstream, shared_ptr<HttpReqMsg> &httpMsg, WHttpStaticWebDir &webDir,
                        string &filePath, int code);
-    void readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentLength,
-                           int64_t startByte);
-    void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);
+    void readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentSize, int64_t startByte);
     void reset();
     void logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
-    static uint64_t getSysTickCountInMilliseconds();
     static void timerEventAdapter(void *ptr);
 };
 
