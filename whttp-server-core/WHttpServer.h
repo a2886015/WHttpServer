@@ -5,7 +5,6 @@
 #include <vector>
 #include <time.h>
 #include <atomic>
-#include <queue>
 
 #define HTTP_SEND_QUEUE_SIZE 3
 #define SEND_BUF_SIZE_BOUNDARY (3 * 1024 * 1024)
@@ -48,8 +47,6 @@ struct WTimerData
     int64_t timeId = 0;
 };
 
-using WHttpLoopFun = std::function<void ()>;
-
 class WHttpServer: public IHttpServer
 {
 public:
@@ -75,6 +72,7 @@ public:
     virtual uint64_t addTimerEvent(unsigned long ms, WTimerEventFun timerEventFun, WTimerRunType runType = WTimerRunRepeat);
     virtual bool deleteTimerEvent(uint64_t timerEventId);
     virtual bool deleteAllTimerEvent();
+    virtual void addNextLoopFun(WHttpNextLoopFun fun);
 
     static void toLowerString(string &str);
     static void toUpperString(string &str);
@@ -110,7 +108,7 @@ private:
     std::atomic<int> _currentKeepAliveNum {0};
     uint64_t _currentTimerId = 1;
     std::map<uint64_t, WTimerData*> _timerEventMap;
-    std::queue<WHttpLoopFun> _loopFunQueue;
+    LockQueue<WHttpNextLoopFun> _loopFunQueue;
     int64_t _pollCount = 0;
 
     void recvHttpRequest(struct mg_connection *conn, int msgType, void *msgData, void *cbData);

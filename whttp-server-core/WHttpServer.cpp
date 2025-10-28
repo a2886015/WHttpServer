@@ -551,6 +551,11 @@ bool WHttpServer::deleteAllTimerEvent()
     return true;
 }
 
+void WHttpServer::addNextLoopFun(WHttpNextLoopFun fun)
+{
+    _loopFunQueue.enQueue(fun);
+}
+
 void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgData, void *cbData)
 {
     if (_httpPort == -1 && _httpsPort == -1)
@@ -807,8 +812,8 @@ void WHttpServer::loopEventPoll()
 {
     while(!_loopFunQueue.empty())
     {
-        WHttpLoopFun loopFun = _loopFunQueue.front();
-        _loopFunQueue.pop();
+        WHttpNextLoopFun loopFun;
+        _loopFunQueue.deQueue(loopFun);
         loopFun();
     }
 }
@@ -1169,7 +1174,7 @@ void WHttpServer::timerEventAdapter(void *ptr)
     (timerData->timerFun)();
     if (timerData->runType == WTimerRunOnce)
     {
-        WHttpLoopFun loopFun = std::bind(&WHttpServer::deleteTimerEvent, timerData->httpServer, timerData->timeId);
-        timerData->httpServer->_loopFunQueue.push(loopFun);
+        WHttpNextLoopFun loopFun = std::bind(&WHttpServer::deleteTimerEvent, timerData->httpServer, timerData->timeId);
+        timerData->httpServer->addNextLoopFun(loopFun);
     }
 }

@@ -244,7 +244,7 @@ void HttpExample::readFileForDownload(shared_ptr<HttpReqMsg> httpMsg, FILE *file
     {
         if (_httpServer->isClientDisconnect(httpMsg))
         {
-            HLogw("WHttpServer::readStaticWebFile http client close the connection actively");
+            HLogw("WHttpServer::readFileForDownload http client close the connection actively");
             break;
         }
 
@@ -254,7 +254,7 @@ void HttpExample::readFileForDownload(shared_ptr<HttpReqMsg> httpMsg, FILE *file
             currentMs = WHttpServer::getSysTickCountInMilliseconds();
             if (currentMs - lastWriteMs > MAX_DOWNLOAD_PAUSE_TIME * 1000)
             {
-                HLogi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
+                HLogi("WHttpServer::readFileForDownload download file timeout %s", httpMsg->uri.c_str());
                 _httpServer->forceCloseHttpConnection(httpMsg);
                 return;
             }
@@ -270,7 +270,7 @@ void HttpExample::readFileForDownload(shared_ptr<HttpReqMsg> httpMsg, FILE *file
         currentReadSize += readSize;
         if (readSize == 0)
         {
-            HLogw("WHttpServer::readStaticWebFile read size is 0");
+            HLogw("WHttpServer::readFileForDownload read size is 0");
             break;
         }
 

@@ -69,6 +69,7 @@ enum WTimerRunType
 using HttpCbFun = std::function<void(shared_ptr<HttpReqMsg> &)>;
 using HttpFilterFun = std::function<bool(shared_ptr<HttpReqMsg> &)>;
 using WTimerEventFun = std::function<void()>;
+using WHttpNextLoopFun = std::function<void()>;
 
 class IHttpServer
 {
@@ -95,4 +96,5 @@ public:
     virtual uint64_t addTimerEvent(unsigned long ms, WTimerEventFun timerEventFun, WTimerRunType runType = WTimerRunRepeat) = 0;
     virtual bool deleteTimerEvent(uint64_t timerEventId) = 0;
     virtual bool deleteAllTimerEvent() = 0;
+    virtual void addNextLoopFun(WHttpNextLoopFun fun) = 0;
 };
