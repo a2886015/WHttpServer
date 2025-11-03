@@ -786,6 +786,7 @@ char *mg_straddr(struct mg_connection *, char *, size_t);
 bool mg_socketpair(int *s1, int *s2);
 bool mg_aton(struct mg_str str, struct mg_addr *addr);
 char *mg_ntoa(const struct mg_addr *addr, char *buf, size_t len);
+void close_conn(struct mg_connection *c);
 void w_close_conn(struct mg_connection *c);
 
 
