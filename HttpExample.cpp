@@ -29,8 +29,8 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Methods: GET, PUT, POST, DELETE, OPTIONS" << "\r\n";
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
     _httpServer->addStaticWebDir("../web", sstream.str());
-    //    _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
-    //    _httpServer->addStaticWebDir("/Users/kewen/Downloads/wawa", sstream.str());
+    // _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
+    _httpServer->addStaticWebDir("/Users/wenke/Downloads/webStatic", sstream.str());
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
@@ -106,7 +106,7 @@ void HttpExample::handleHttpBigFileUpload(shared_ptr<HttpReqMsg> &httpMsg)
         shared_ptr<string> chunkData = _httpServer->deQueueHttpChunk(httpMsg);
         if (!chunkData.get())
         {
-            this_thread::sleep_for(chrono::milliseconds(1));;
+            this_thread::sleep_for(chrono::milliseconds(1));
             continue;
         }
 

@@ -3,6 +3,9 @@ bin-debug/
 bin-release/
 [Oo]bj/
 [Bb]in/
+.DS_Store
+.qtcreator
+build/
 
 # Other files and folders
 .settings/
