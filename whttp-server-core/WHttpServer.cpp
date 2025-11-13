@@ -116,12 +116,12 @@ bool WHttpServer::stop()
 
     if (_httpServerConn)
     {
-        _httpServerConn->is_draining = 1;
+        _httpServerConn->is_closing = 1;
     }
 
     if (_httpsServerConn)
     {
-        _httpsServerConn->is_draining = 1;
+        _httpsServerConn->is_closing = 1;
     }
 
     this_thread::sleep_for(chrono::milliseconds(100)); // make sure other thread know server closing
