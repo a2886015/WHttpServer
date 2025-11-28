@@ -1034,6 +1034,7 @@ void WHttpServer::enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_messa
     shared_ptr<string> chunk = shared_ptr<string>(new string());
     chunk->resize(httpCbData->chunk.len);
     memcpy((char*)chunk->c_str(), httpCbData->chunk.ptr, httpCbData->chunk.len);
+    // mg_iobuf_delete(&httpMsg->httpConnection->recv, httpMsg->httpConnection->recv.len);
     httpMsg->httpConnection->recv.len -= httpCbData->chunk.len;
     bool res = httpMsg->chunkQueue->enQueue(chunk);
     assert(res);
