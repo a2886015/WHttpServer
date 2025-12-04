@@ -4,7 +4,7 @@ bin-release/
 [Oo]bj/
 [Bb]in/
 .DS_Store
-.qtcreator
+.qtcreator/
 build/
 
 # Other files and folders

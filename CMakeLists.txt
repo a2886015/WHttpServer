@@ -38,6 +38,7 @@ elseif(UNIX AND NOT APPLE)
                -fno-omit-frame-pointer
                -fsanitize=leak
                -fsanitize-recover=address
+               -fsanitize=undefined
                -lasan
         )
 endif()
