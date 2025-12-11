@@ -17,6 +17,16 @@ WHttpServer::WHttpServer(mg_mgr *mgr)
 WHttpServer::~WHttpServer()
 {
     deleteAllTimerEvent();
+    if (_httpServerConn)
+    {
+        _httpServerConn->fn = nullptr;
+    }
+
+    if (_httpsServerConn)
+    {
+        _httpsServerConn->fn = nullptr;
+    }
+
     stop();
     if (_selfMgrFlag)
     {
