@@ -1160,6 +1160,31 @@ int WHttpServer::hexToInt(char c)
     return -1;
 }
 
+int64_t WHttpServer::getIntFromQuery(const map<string, string> &querys, const string &key, int64_t defaultValue)
+{
+    if (querys.find(key) != querys.end()) {
+        std::string str = querys.at(key);
+
+        try {
+            return std::stoll(str);
+        } catch (std::exception& e) {
+            HLogw("WHttpServer::getIntFromQuery error")
+            return defaultValue;
+        }
+    } else {
+        return defaultValue;
+    }
+}
+
+string WHttpServer::getStrFromQuery(const map<string, string> &querys, const string &key, const string &defaultValue)
+{
+    if (querys.find(key) != querys.end()) {
+        return querys.at(key);
+    } else {
+        return defaultValue;
+    }
+}
+
 void WHttpServer::recvHttpRequestCallback(mg_connection *conn, int msgType, void *msgData, void *cbData)
 {
     WHttpServerCbMsg *cbMsg = (WHttpServerCbMsg *)cbData;
@@ -1168,14 +1193,14 @@ void WHttpServer::recvHttpRequestCallback(mg_connection *conn, int msgType, void
 
 uint64_t WHttpServer::getSysTickCountInMilliseconds()
 {
-    timespec time;
-    int ret = clock_gettime(CLOCK_MONOTONIC, &time);
+    timespec time2;
+    int ret = clock_gettime(CLOCK_MONOTONIC, &time2);
 
     if (ret != 0)
     {
-        printf("get clock error!\n");
+        HLogw("get clock error!");
     }
-    uint64_t result = ((uint64_t)time.tv_sec) * 1000 + ((uint64_t)time.tv_nsec) / 1000000;
+    uint64_t result = ((uint64_t)time2.tv_sec) * 1000 + ((uint64_t)time2.tv_nsec) / 1000000;
     return result;
 }
 

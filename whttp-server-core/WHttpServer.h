@@ -81,9 +81,10 @@ public:
     static std::string urlEncode(const std::string& input, bool isFormEncoded = false);
     static int hexToInt(char c);
     static uint64_t getSysTickCountInMilliseconds();
-
     // range下载时外部可以使用到，用于解析下载范围
     static void parseRangeStr(string rangeStr, int64_t &startByte, int64_t &endByte, int64_t fileSize);
+    static std::string getStrFromQuery(const map<std::string, std::string>& querys, const std::string& key, const std::string& defaultValue = "");
+    static int64_t getIntFromQuery(const map<std::string, std::string>& querys, const std::string& key, int64_t defaultValue = 0);
 
 private:
     volatile int _httpPort = -1;
@@ -137,5 +138,3 @@ private:
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     static void timerEventAdapter(void *ptr);
 };
-
-
