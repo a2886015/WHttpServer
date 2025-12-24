@@ -192,11 +192,12 @@ void WHttpServer::closeHttpConnection(struct mg_connection *conn, bool isDirectC
         return;
     }
 
-    if (isDirectClose) // isDirectClose为false时，需要在sendHttpMsgPoll置位is_draining
+    if (isDirectClose)
     {
         conn->is_draining = 1;
     }
-    conn->label[W_FD_STATUS_BIT] = HTTP_NORMAL_CLOSE;
+
+    conn->label[W_FD_STATUS_BIT] = HTTP_NORMAL_CLOSE; // isDirectClose为false时，在sendHttpMsgPoll置位is_draining
 }
 
 std::set<string> WHttpServer::getSupportMethods(int httpMethods)
@@ -311,10 +312,10 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
     }
 
     fclose(file);
-    if (httpMsg->isKeepingAlive)
-    {
-        httpMsg->lastKeepAliveTime = getSysTickCountInMilliseconds();
-    }
+    // if (httpMsg->isKeepingAlive)
+    // {
+    //     httpMsg->lastKeepAliveTime = getSysTickCountInMilliseconds();
+    // }
     return true;
 }
 
@@ -330,11 +331,9 @@ void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<Ht
     }
     else if ((reqHeaders.find("connection") != reqHeaders.end()) && (reqHeaders["connection"] == "keep-alive"))
     {
-        if (_currentKeepAliveNum < MAX_KEEP_ALIVE_NUM)
+        if (setKeepAlive(httpMsg))
         {
             sstream << "Connection: " << "keep-alive" << "\r\n";
-            _currentKeepAliveNum++;
-            httpMsg->isKeepingAlive = true;
         }
         else
         {
@@ -444,6 +443,39 @@ void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCb
         msg[1024] = '\0';
         HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 1024 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
+}
+
+void WHttpServer::handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode, string head, string body)
+{
+    shared_ptr<HttpReqMsg> httpMsg = nullptr;
+    int64_t fd = (int64_t)conn->fd;
+    // if keep-alive fd, erase last http msg
+    if (_workingMsgMap.find(fd) != _workingMsgMap.end())
+    {
+        httpMsg = _workingMsgMap[fd];
+        if (httpMsg->isKeepingAlive)
+        {
+            releaseHttpReqMsg(_workingMsgMap[fd]);
+            _workingMsgMap.erase(fd);
+            httpMsg = parseHttpMsgWhenAbnormal(conn);
+            httpMsg->isKeepingAlive = false;
+            _currentKeepAliveNum--;
+        }
+        else
+        {
+            // 这里考虑到上轮任务的线程可能还没有退出，所以用httpReplyJson，至于socket的关闭，依靠上一轮的释放就行，httpMsg也用上一轮的
+            httpReplyJson(httpMsg, 400, "Connection: close\r\n", formJsonBody(HTTP_NOT_KEEP_ALIVE, "do not support keep alive"));
+            return;
+        }
+    }
+    else
+    {
+        httpMsg = parseHttpMsgWhenAbnormal(conn);
+    }
+
+    _workingMsgMap[fd] = httpMsg;
+    httpReplyJson(httpMsg, httpCode, head, body);
+    closeHttpConnection(conn);
 }
 
 void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)
@@ -566,6 +598,21 @@ void WHttpServer::addNextLoopFun(WHttpNextLoopFun fun)
     _loopFunQueue.enQueue(fun);
 }
 
+bool WHttpServer::setKeepAlive(shared_ptr<HttpReqMsg> httpMsg)
+{
+    if (_currentKeepAliveNum < MAX_KEEP_ALIVE_NUM)
+    {
+        _currentKeepAliveNum++;
+        httpMsg->isKeepingAlive = true;
+        return true;
+    }
+    else
+    {
+        HLogw("WHttpServer::setKeepAlive reach the max num");
+        return false;
+    }
+}
+
 void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgData, void *cbData)
 {
     if (_httpPort == -1 && _httpsPort == -1)
@@ -598,8 +645,9 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         logHttpRequestMsg(conn, httpCbData);
         if (httpCbData->head.len > HTTP_MAX_HEAD_SIZE)
         {
-            mg_http_reply(conn, 400, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
-            closeHttpConnection(conn, true);
+            handleHttpReplyWhenAbnormal(conn, 400, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M"));
+            // mg_http_reply(conn, 400, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
+            // closeHttpConnection(conn, true);
             return;
         }
 
@@ -609,8 +657,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0)
                     && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
             {
-                mg_http_reply(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request").c_str());
-                closeHttpConnection(conn, true);
+                handleHttpReplyWhenAbnormal(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request"));
                 return;
             }
             else
@@ -623,10 +670,20 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         // if keep-alive fd, erase last http msg
         if (_workingMsgMap.find(fd) != _workingMsgMap.end())
         {
-            releaseHttpReqMsg(_workingMsgMap[fd]);
-            _workingMsgMap.erase(fd);
-            httpMsg = parseHttpMsg(conn, httpCbData);
-            httpMsg->isKeepingAlive = true;
+            httpMsg = _workingMsgMap[fd];
+            if (httpMsg->isKeepingAlive)
+            {
+                releaseHttpReqMsg(_workingMsgMap[fd]);
+                _workingMsgMap.erase(fd);
+                httpMsg = parseHttpMsg(conn, httpCbData);
+                httpMsg->isKeepingAlive = true;
+            }
+            else
+            {
+                // 这里考虑到上轮任务的线程可能还没有退出，所以用httpReplyJson，至于socket的关闭，依靠上一轮的释放就行，httpMsg也用上一轮的
+                httpReplyJson(httpMsg, 400, "Connection: close\r\n", formJsonBody(HTTP_NOT_KEEP_ALIVE, "do not support keep alive"));
+                return;
+            }
         }
         else
         {
@@ -646,8 +703,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
 
         if (httpCbData->head.len > HTTP_MAX_HEAD_SIZE)
         {
-            mg_http_reply(conn, 400, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M").c_str());
-            closeHttpConnection(conn, true);
+            handleHttpReplyWhenAbnormal(conn, 400, "", formJsonBody(HTTP_BEYOND_HEAD_SIZE, "head size beyond 2M"));
             return;
         }
 
@@ -731,6 +787,7 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiD
     if (httpMsg->isKeepingAlive)
     {
         httpMsg->httpConnection->label[W_FD_STATUS_BIT] = HTTP_NOT_USE;
+        httpMsg->lastKeepAliveTime = getSysTickCountInMilliseconds();
     }
     else
     {
@@ -971,6 +1028,17 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
         memcpy((char*)res->body.c_str(), httpCbData->body.ptr, httpCbData->body.len);
     }
 
+    return res;
+}
+
+shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsgWhenAbnormal(mg_connection *conn)
+{
+    shared_ptr<HttpReqMsg> res = shared_ptr<HttpReqMsg>(new HttpReqMsg());
+    res->httpConnection = conn;
+    conn->label[W_VALID_CONNECT_BIT] = 1;
+    conn->label[W_EXTERNAL_CLOSE_BIT] = 1;
+    conn->label[W_FD_STATUS_BIT] = HTTP_IN_USE;
+    res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
     return res;
 }
 

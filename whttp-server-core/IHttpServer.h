@@ -97,4 +97,5 @@ public:
     virtual bool deleteTimerEvent(uint64_t timerEventId) = 0;
     virtual bool deleteAllTimerEvent() = 0;
     virtual void addNextLoopFun(WHttpNextLoopFun fun) = 0;
+    virtual bool setKeepAlive(shared_ptr<HttpReqMsg> httpMsg) = 0; // 设置长链接，外部在header头部需要自己返回Connection:keep-alive
 };

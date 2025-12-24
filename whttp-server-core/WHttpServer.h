@@ -13,6 +13,7 @@
 
 #define HTTP_UNKNOWN_REQUEST 100
 #define HTTP_BEYOND_HEAD_SIZE 101
+#define HTTP_NOT_KEEP_ALIVE   102
 
 #define MAX_KEEP_ALIVE_NUM 100
 #define KEEP_ALIVE_TIME 5 // 5s
@@ -73,6 +74,7 @@ public:
     virtual bool deleteTimerEvent(uint64_t timerEventId);
     virtual bool deleteAllTimerEvent();
     virtual void addNextLoopFun(WHttpNextLoopFun fun);
+    virtual bool setKeepAlive(shared_ptr<HttpReqMsg> httpMsg);
 
     static void toLowerString(string &str);
     static void toUpperString(string &str);
@@ -123,6 +125,7 @@ private:
     bool findChunkHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData &cbApiData);
     bool isValidHttpChunk(mg_http_message *httpCbData);
     shared_ptr<HttpReqMsg> parseHttpMsg(struct mg_connection *conn, struct mg_http_message *httpCbData, bool chunkFlag = false);
+    shared_ptr<HttpReqMsg> parseHttpMsgWhenAbnormal(struct mg_connection *conn);
     void parseHttpQuery(mg_http_message *httpCbData, std::map<std::string, std::string> &queryMap);
     void enQueueHttpChunk(shared_ptr<HttpReqMsg> httpMsg, mg_http_message *httpCbData);
     void releaseHttpReqMsg(shared_ptr<HttpReqMsg> httpMsg);
@@ -134,6 +137,7 @@ private:
     void readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentSize, int64_t startByte);
     void reset();
     void logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData);
+    void handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode, string head, string body);
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     static void timerEventAdapter(void *ptr);
