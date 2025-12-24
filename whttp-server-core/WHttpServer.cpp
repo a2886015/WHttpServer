@@ -464,7 +464,7 @@ void WHttpServer::handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode,
         else
         {
             // 这里考虑到上轮任务的线程可能还没有退出，所以用httpReplyJson，至于socket的关闭，依靠上一轮的释放就行，httpMsg也用上一轮的
-            httpReplyJson(httpMsg, 400, "Connection: close\r\n", formJsonBody(HTTP_NOT_KEEP_ALIVE, "do not support keep alive"));
+            httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_NOT_KEEP_ALIVE, "do not support keep alive"));
             return;
         }
     }
@@ -483,6 +483,15 @@ void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, st
     stringstream sstream;
     sstream << "HTTP/1.1 " << httpCode << " " << mg_http_status_code_str(httpCode) << "\r\n";
     sstream << "Content-Type: application/json\r\n";
+    if (httpMsg->isKeepingAlive)
+    {
+        sstream << "Connection: keep-alive\r\n";
+    }
+    else
+    {
+        sstream << "Connection: close\r\n";
+    }
+
     if (!head.empty())
     {
         sstream << head;
@@ -681,7 +690,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             else
             {
                 // 这里考虑到上轮任务的线程可能还没有退出，所以用httpReplyJson，至于socket的关闭，依靠上一轮的释放就行，httpMsg也用上一轮的
-                httpReplyJson(httpMsg, 400, "Connection: close\r\n", formJsonBody(HTTP_NOT_KEEP_ALIVE, "do not support keep alive"));
+                httpReplyJson(httpMsg, 400, "", formJsonBody(HTTP_NOT_KEEP_ALIVE, "do not support keep alive"));
                 return;
             }
         }
