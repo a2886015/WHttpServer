@@ -1245,7 +1245,7 @@ int64_t WHttpServer::getIntFromQuery(const map<string, string> &querys, const st
         try {
             return std::stoll(str);
         } catch (std::exception& e) {
-            HLogw("WHttpServer::getIntFromQuery error")
+            HLogw("WHttpServer::getIntFromQuery error");
             return defaultValue;
         }
     } else {
