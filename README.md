@@ -18,7 +18,7 @@
 1. bool init(int maxEventThreadNum)，初始化线程池，指定线程池最大线程数
 2. bool startHttp(int port)，开启http服务
 3. bool startHttps(int port, string certPath, string keyPath)，开启https服务
-4. bool stop()，停止http和https服务，在析构函数函数里面已经调用
+4. bool stop()，停止http和https服务，在析构函数里面已经调用
 5. bool run(int timeoutMs)，服务运行的发动机，外部必须用一个死循环一直调用该函数
 6. bool isRunning()，查看服务是否还在运行中
 7. void addHttpApi(const string &uri, HttpCbFun fun, int httpMethods)，添加普通的http回调接口，其中httpMethods以数据的不同位置位代表不同的http方法，具体如下：
