@@ -432,16 +432,16 @@ void WHttpServer::reset()
 
 void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData)
 {
-    if (httpCbData->message.len < 2048)
+    if (httpCbData->message.len < 4096)
     {
         HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
     }
     else
     {
-        char msg[2049] = {0};
-        memcpy(msg, httpCbData->message.ptr, 2048);
-        msg[2048] = '\0';
-        HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 2048 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
+        char msg[4097] = {0};
+        memcpy(msg, httpCbData->message.ptr, 4096);
+        msg[4096] = '\0';
+        HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 4096 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
 }
 
