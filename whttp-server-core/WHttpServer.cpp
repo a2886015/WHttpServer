@@ -370,13 +370,13 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
         {
             currentMs = getSysTickCountInMilliseconds();
-            if (currentMs - lastWriteMs > MAX_DOWNLOAD_PAUSE_TIME * 1000)
+            if (currentMs - lastWriteMs > W_MAX_DOWNLOAD_PAUSE_TIME * 1000)
             {
                 HLogi("WHttpServer::readStaticWebFile download file timeout %s", httpMsg->uri.c_str());
                 forceCloseHttpConnection(httpMsg);
                 return;
             }
-            this_thread::sleep_for(chrono::milliseconds(1));
+            this_thread::sleep_for(chrono::milliseconds(2));
             continue;
         }
 
