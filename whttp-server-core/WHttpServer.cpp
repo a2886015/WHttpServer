@@ -276,8 +276,6 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
             string rangeStr = httpMsg->headers["range"];
             int64_t startByte = 0, endByte = 0;
             parseRangeStr(rangeStr, startByte, endByte, fileSize);
-            startByte = startByte < 0 ? 0 : startByte;
-            endByte = (endByte > fileSize - 1) ? (fileSize - 1) : endByte;
             int64_t contentLength = endByte - startByte + 1;
             contentLength = contentLength < 0 ? 0 : contentLength;
             if (contentLength < fileSize)
@@ -423,6 +421,9 @@ void WHttpServer::parseRangeStr(string rangeStr, int64_t &startByte, int64_t &en
     {
         endByte = str2ll(rangeStr.substr(lineMarkIndex + 1));
     }
+
+    startByte = startByte < 0 ? 0 : startByte;
+    endByte = (endByte > fileSize - 1) ? (fileSize - 1) : endByte;
 }
 
 void WHttpServer::reset()
