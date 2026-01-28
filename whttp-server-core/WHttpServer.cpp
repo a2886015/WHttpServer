@@ -376,7 +376,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
                 forceCloseHttpConnection(httpMsg);
                 return;
             }
-            this_thread::sleep_for(chrono::milliseconds(1));
+            this_thread::sleep_for(chrono::milliseconds(2));
             continue;
         }
 
@@ -384,7 +384,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         fileStr->resize(perReadSize);
 
         int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
-        int64_t readSize = fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
+        int64_t readSize = (int64_t)fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
         currentReadSize += readSize;
         if (readSize == 0)
         {
