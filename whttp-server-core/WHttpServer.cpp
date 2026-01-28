@@ -376,7 +376,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
                 forceCloseHttpConnection(httpMsg);
                 return;
             }
-            this_thread::sleep_for(chrono::milliseconds(2));
+            this_thread::sleep_for(chrono::milliseconds(1));
             continue;
         }
 
