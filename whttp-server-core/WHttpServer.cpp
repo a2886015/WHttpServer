@@ -449,15 +449,15 @@ void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCb
 void WHttpServer::handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode, string head, string body)
 {
     shared_ptr<HttpReqMsg> httpMsg = nullptr;
-    int64_t fd = (int64_t)conn->fd;
+    int64_t connId = (int64_t)conn->id;
     // if keep-alive fd, erase last http msg
-    if (_workingMsgMap.find(fd) != _workingMsgMap.end())
+    if (_workingMsgMap.find(connId) != _workingMsgMap.end())
     {
-        httpMsg = _workingMsgMap[fd];
+        httpMsg = _workingMsgMap[connId];
         if (httpMsg->isKeepingAlive)
         {
-            releaseHttpReqMsg(_workingMsgMap[fd]);
-            _workingMsgMap.erase(fd);
+            releaseHttpReqMsg(_workingMsgMap[connId]);
+            _workingMsgMap.erase(connId);
             httpMsg = parseHttpMsgWhenAbnormal(conn);
             httpMsg->isKeepingAlive = false;
             _currentKeepAliveNum--;
@@ -474,7 +474,7 @@ void WHttpServer::handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode,
         httpMsg = parseHttpMsgWhenAbnormal(conn);
     }
 
-    _workingMsgMap[fd] = httpMsg;
+    _workingMsgMap[connId] = httpMsg;
     httpReplyJson(httpMsg, httpCode, head, body);
     closeHttpConnection(conn);
 }
@@ -631,7 +631,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
     }
 
     WHttpServerCbMsg *cbMsg = (WHttpServerCbMsg *)cbData;
-    int64_t fd = (int64_t)conn->fd;
+    int64_t connId = (int64_t)conn->id;
     if (msgType == MG_EV_ACCEPT && cbMsg->httpsFlag)
     {
         struct mg_tls_opts opts;
@@ -678,13 +678,13 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
 
         shared_ptr<HttpReqMsg> httpMsg = nullptr;
         // if keep-alive fd, erase last http msg
-        if (_workingMsgMap.find(fd) != _workingMsgMap.end())
+        if (_workingMsgMap.find(connId) != _workingMsgMap.end())
         {
-            httpMsg = _workingMsgMap[fd];
+            httpMsg = _workingMsgMap[connId];
             if (httpMsg->isKeepingAlive)
             {
-                releaseHttpReqMsg(_workingMsgMap[fd]);
-                _workingMsgMap.erase(fd);
+                releaseHttpReqMsg(_workingMsgMap[connId]);
+                _workingMsgMap.erase(connId);
                 httpMsg = parseHttpMsg(conn, httpCbData);
                 httpMsg->isKeepingAlive = true;
             }
@@ -699,8 +699,8 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         {
             httpMsg = parseHttpMsg(conn, httpCbData);
         }
-        _workingMsgMap[fd] = httpMsg;
-        _threadPool->concurrentRun(&WHttpServer::handleHttpMsg, this, std::ref(_workingMsgMap[fd]), cbApiData);
+        _workingMsgMap[connId] = httpMsg;
+        _threadPool->concurrentRun(&WHttpServer::handleHttpMsg, this, std::ref(_workingMsgMap[connId]), cbApiData);
     }
     else if (msgType == MG_EV_HTTP_CHUNK)
     {
@@ -717,16 +717,16 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             return;
         }
 
-        if (_workingMsgMap.find(fd) == _workingMsgMap.end())
+        if (_workingMsgMap.find(connId) == _workingMsgMap.end())
         {
             logHttpRequestMsg(conn, httpCbData);
             shared_ptr<HttpReqMsg> httpMsg = parseHttpMsg(conn, httpCbData, true);
-            _workingMsgMap[fd] = httpMsg;
-            _threadPool->concurrentRun(&WHttpServer::handleChunkHttpMsg, this, std::ref(_workingMsgMap[fd]), chunkCbApiData);
+            _workingMsgMap[connId] = httpMsg;
+            _threadPool->concurrentRun(&WHttpServer::handleChunkHttpMsg, this, std::ref(_workingMsgMap[connId]), chunkCbApiData);
         }
         else
         {
-            shared_ptr<HttpReqMsg> httpMsg = _workingMsgMap[fd];
+            shared_ptr<HttpReqMsg> httpMsg = _workingMsgMap[connId];
             enQueueHttpChunk(httpMsg, httpCbData);
         }
     }
@@ -741,8 +741,8 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         if (conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE)
         {
             w_close_conn(conn);
-            releaseHttpReqMsg(_workingMsgMap[fd]);
-            _workingMsgMap.erase(fd);
+            releaseHttpReqMsg(_workingMsgMap[connId]);
+            _workingMsgMap.erase(connId);
             return;
         }
 
@@ -837,10 +837,10 @@ void WHttpServer::asyncCloseConnPoll()
         else
         {
             HLogi("WHttpServer::asyncCloseConnPoll close conn id: %ld", conn->id);
-            int64_t fd = (int64_t)conn->fd;
+            int64_t connId = (int64_t)conn->id;
             w_close_conn(conn);
-            releaseHttpReqMsg(_workingMsgMap[fd]);
-            _workingMsgMap.erase(fd);
+            releaseHttpReqMsg(_workingMsgMap[connId]);
+            _workingMsgMap.erase(connId);
             it = _clientSelfCloseList.erase(it);
         }
     }
