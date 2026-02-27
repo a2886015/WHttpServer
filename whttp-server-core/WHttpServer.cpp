@@ -322,6 +322,9 @@ void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<Ht
 {
     sstream << "HTTP/1.1 "<< code << " " << mg_http_status_code_str(code) << "\r\n";
     sstream << "Content-Type: " << guess_content_type(filePath.c_str()) << "\r\n";
+    // 下面2条是禁止浏览器缓存
+    sstream << "Cache-Control: no-store, no-cache" << "\r\n";
+    sstream << "Expires: Thu, 01 Jan 1970 00:00:00 GMT" << "\r\n";
     map<string, string, WCaseCompare> &reqHeaders = httpMsg->headers;
     if (httpMsg->isKeepingAlive)
     {

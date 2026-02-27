@@ -30,7 +30,7 @@ void HttpExample::start()
     sstream << "Access-Control-Allow-Headers: *" << "\r\n";
     _httpServer->addStaticWebDir("../web", sstream.str());
     // _httpServer->addStaticWebDir("/Users/kewen/working", sstream.str());
-    _httpServer->addStaticWebDir("/Users/wenke/Downloads/webStatic", sstream.str());
+    _httpServer->addStaticWebDir("/Users/wenke/Downloads/m3u8", sstream.str());
 
     HttpCbFun normalCbFun = std::bind(&HttpExample::handleHttpRequestTest, this, std::placeholders::_1);
     _httpServer->addHttpApi("/whttpserver/test", normalCbFun, W_HTTP_GET);
@@ -252,7 +252,7 @@ void HttpExample::readFileForDownload(shared_ptr<HttpReqMsg> httpMsg, FILE *file
         if (httpMsg->sendQueue->size() >= HTTP_SEND_QUEUE_SIZE)
         {
             currentMs = WHttpServer::getSysTickCountInMilliseconds();
-            if (currentMs - lastWriteMs > MAX_DOWNLOAD_PAUSE_TIME * 1000)
+            if (currentMs - lastWriteMs > W_MAX_DOWNLOAD_PAUSE_TIME * 1000)
             {
                 HLogi("WHttpServer::readFileForDownload download file timeout %s", httpMsg->uri.c_str());
                 _httpServer->forceCloseHttpConnection(httpMsg);
