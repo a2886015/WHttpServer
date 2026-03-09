@@ -266,6 +266,7 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
     if (httpMsg->method == "OPTIONS")
     {
         formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 204);
+        sstream << "Accept-Ranges: bytes\r\n";
         sstream << "\r\n"; // 空行表示http头部完成
         addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
     }
@@ -300,6 +301,7 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
         {
             formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 200);
             sstream << "Content-Length: " << fileSize << "\r\n";
+            sstream << "Accept-Ranges: bytes\r\n"; // 即使是全部数据返回也要加上这个，这样ffmpeg写的播放器才能正常seek
             sstream << "\r\n";
             addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
             if (httpMsg->method != "HEAD")
