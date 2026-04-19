@@ -300,8 +300,8 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
         else
         {
             formStaticWebDirResHeader(sstream, httpMsg, webDir, filePath, 200);
-            sstream << "Content-Length: " << fileSize << "\r\n";
             sstream << "Accept-Ranges: bytes\r\n"; // 即使是全部数据返回也要加上这个，这样ffmpeg写的播放器才能正常seek
+            sstream << "Content-Length: " << fileSize << "\r\n";
             sstream << "\r\n";
             addSendMsgToQueue(httpMsg, sstream.str().c_str(), sstream.str().size());
             if (httpMsg->method != "HEAD")
@@ -324,7 +324,6 @@ void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<Ht
 {
     sstream << "HTTP/1.1 "<< code << " " << mg_http_status_code_str(code) << "\r\n";
     sstream << "Content-Type: " << guess_content_type(filePath.c_str()) << "\r\n";
-    // 下面2条是禁止浏览器缓存
     sstream << "Cache-Control: no-store, no-cache" << "\r\n";
     sstream << "Expires: Thu, 01 Jan 1970 00:00:00 GMT" << "\r\n";
     map<string, string, WCaseCompare> &reqHeaders = httpMsg->headers;
@@ -386,18 +385,17 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         }
 
         shared_ptr<string> fileStr = shared_ptr<string>(new string());
-        fileStr->resize(perReadSize);
-
         int64_t currentWantReadSize = remainSize > perReadSize ? perReadSize : remainSize;
+        fileStr->resize(currentWantReadSize);
         int64_t readSize = (int64_t)fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
         currentReadSize += readSize;
-        if (readSize == 0)
+        if (readSize < 0)
         {
-            HLogw("WHttpServer::readStaticWebFile read size is 0");
+            HLogw("WHttpServer::readStaticWebFile read file error");
             break;
         }
 
-        if (readSize != perReadSize)
+        if (readSize != currentWantReadSize)
         {
             fileStr->resize(readSize);
         }
@@ -670,7 +668,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         if (!findHttpCbFun(httpCbData, cbApiData))
         {
             if ((mg_vcasecmp(&(httpCbData->method), "GET") != 0) && (mg_vcasecmp(&(httpCbData->method), "HEAD") != 0)
-                    && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
+                && (mg_vcasecmp(&(httpCbData->method), "OPTIONS") != 0))
             {
                 handleHttpReplyWhenAbnormal(conn, 400, "", formJsonBody(HTTP_UNKNOWN_REQUEST, "unknown request"));
                 return;
@@ -920,7 +918,7 @@ bool WHttpServer::findChunkHttpCbFun(mg_http_message *httpCbData, WHttpServerApi
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
-                    (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
                 cbApiData = it->second;
                 res = true;
@@ -944,7 +942,7 @@ bool WHttpServer::isValidHttpChunk(mg_http_message *httpCbData)
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
-                    (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
                 res = true;
                 break;
@@ -968,7 +966,7 @@ bool WHttpServer::findHttpCbFun(mg_http_message *httpCbData, WHttpServerApiData 
         if (strncmp(it->first.c_str(), httpCbData->uri.ptr, cmpSize) == 0)
         {
             if (((it->first)[cmpSize - 1] == '/') || (httpCbData->uri.len == cmpSize) ||
-                    (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
+                (httpCbData->uri.len > cmpSize && httpCbData->uri.ptr[cmpSize] == '/'))
             {
                 cbApiData = it->second;
                 res = true;
