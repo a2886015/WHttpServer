@@ -389,7 +389,7 @@ void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, 
         fileStr->resize(currentWantReadSize);
         int64_t readSize = (int64_t)fread((char *)fileStr->c_str(), 1, currentWantReadSize, file);
         currentReadSize += readSize;
-        if (readSize < 0)
+        if (readSize <= 0)
         {
             HLogw("WHttpServer::readStaticWebFile read file error");
             break;
