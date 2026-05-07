@@ -487,6 +487,8 @@ void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, st
     stringstream sstream;
     sstream << "HTTP/1.1 " << httpCode << " " << mg_http_status_code_str(httpCode) << "\r\n";
     sstream << "Content-Type: application/json\r\n";
+    sstream << "Cache-Control: no-store, no-cache" << "\r\n";
+    sstream << "Expires: Thu, 01 Jan 1970 00:00:00 GMT" << "\r\n";
     if (httpMsg->isKeepingAlive)
     {
         sstream << "Connection: keep-alive\r\n";
