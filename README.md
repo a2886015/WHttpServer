@@ -7,7 +7,8 @@
 操作系统：Linux。
 在mac下也可以运行，但是需要自己修改CMakeLists.txt文件适配好openssl的库；
 
-另外，在linux系统下，可以将CMakeLists.txt中add_definitions(-DUSE_EPOLL)这句打开，这样底层就会切换成epoll
+#### mongoose代码的修改
+mongoose采用的版本是7.3，但是和原版的7.3版本代码已经差异较大了，修复了原版的一些bug，比如文件chunk下载问题。原版mongoose7.3版本多路复用io只能是select，更高版本的mongoose才支持了epoll、poll这些，但是我发现更高版本的mongoose代码写得不够简介，风格也开始变得我不喜欢，故还是停留在7.3版本，将高版本上epoll、poll相关的代码移植回来。目前linux下，默认使用epoll，mac下是poll，windows下依然是select。
 
 #### 安装教程
 
