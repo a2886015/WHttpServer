@@ -982,6 +982,8 @@ const char *guess_content_type(const char *filename) {
              MIME_ENTRY("mp4", "video/mp4"),
              MIME_ENTRY("mpeg", "video/mpeg"),
              MIME_ENTRY("mpg", "video/mpeg"),
+             MIME_ENTRY("m3u8", "application/vnd.apple.mpegurl"),
+             MIME_ENTRY("ts", "video/MP2T"),
              MIME_ENTRY("ogg", "application/ogg"),
              MIME_ENTRY("pdf", "application/pdf"),
              MIME_ENTRY("rar", "application/rar"),
@@ -3030,7 +3032,6 @@ void close_conn(struct mg_connection *c) {
   if (c == c->mgr->dns6.c) c->mgr->dns6.c = NULL;
   mg_call(c, MG_EV_CLOSE, NULL);
 
-  // while (c->callbacks != NULL) mg_fn_del(c, c->callbacks->fn);
   LOG(LL_DEBUG, ("%lu closed", c->id));
   if (FD(c) != INVALID_SOCKET) {
 #if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
@@ -3057,12 +3058,14 @@ void w_close_conn(struct mg_connection *c)
 
     LOG(LL_DEBUG, ("%lu closed", c->id));
     if (FD(c) != INVALID_SOCKET) {
-      closesocket(FD(c));
-  #if MG_ARCH == MG_ARCH_FREERTOS_TCP
-      FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
-  #endif
+#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
+        epoll_ctl(c->mgr->epoll_fd, EPOLL_CTL_DEL, FD(c), NULL);
+#endif
+        closesocket(FD(c));
+#if MG_ARCH == MG_ARCH_FREERTOS_TCP
+        FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
+#endif
     }
-
     mg_tls_free(c);
     free(c->recv.buf);
     free(c->send.buf);
@@ -3284,7 +3287,7 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
     c->is_readable = c->is_writable = 0;
     if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
     if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0))
-      MG_EPOLL_MOD(c, 1);
+      MG_EPOLL_MOD(c, 1); // 通过EPOLL_CTL_MOD可以重新监听写事件
   }
   // epoll_wait on the persistent epoll_fd
   int n = epoll_wait(mgr->epoll_fd, evs, (int) max, ms);
@@ -3302,7 +3305,7 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   struct mg_connection *c;
   for (c = mgr->conns; c != NULL; c = c->next) n++;
   if (n == 0) { struct timespec ts = {ms / 1000, (ms % 1000) * 1000000}; nanosleep(&ts, NULL); return; }
-  struct pollfd *fds = (struct pollfd *) alloca(n * sizeof(fds[0]));
+  struct pollfd *fds = (struct pollfd *) alloca(n * sizeof(fds[0])); // alloca是在栈上分配内存，实际就是局部数组
   memset(fds, 0, n * sizeof(fds[0]));
   n = 0;
   for (c = mgr->conns; c != NULL; c = c->next) {
