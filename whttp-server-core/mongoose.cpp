@@ -983,6 +983,7 @@ const char *guess_content_type(const char *filename) {
              MIME_ENTRY("mpeg", "video/mpeg"),
              MIME_ENTRY("mpg", "video/mpeg"),
              MIME_ENTRY("m3u8", "application/vnd.apple.mpegurl"),
+             MIME_ENTRY("ts", "video/MP2T"),
              MIME_ENTRY("ogg", "application/ogg"),
              MIME_ENTRY("pdf", "application/pdf"),
              MIME_ENTRY("rar", "application/rar"),
@@ -992,7 +993,6 @@ const char *guess_content_type(const char *filename) {
              MIME_ENTRY("tar", "application/tar"),
              MIME_ENTRY("tgz", "application/tar-gz"),
              MIME_ENTRY("txt", "text/plain; charset=utf-8"),
-             MIME_ENTRY("ts", "video/MP2T"),
              MIME_ENTRY("wasm", "application/wasm"),
              MIME_ENTRY("wav", "audio/wav"),
              MIME_ENTRY("weba", "audio/webm"),
@@ -2362,11 +2362,22 @@ void mg_mgr_free(struct mg_mgr *mgr) {
 #if MG_ARCH == MG_ARCH_FREERTOS_TCP
   FreeRTOS_DeleteSocketSet(mgr->ss);
 #endif
+#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
+  if (mgr->epoll_fd >= 0) close(mgr->epoll_fd), mgr->epoll_fd = -1;
+#endif
   LOG(LL_INFO, ("All connections closed"));
 }
 
 void mg_mgr_init(struct mg_mgr *mgr) {
   memset(mgr, 0, sizeof(*mgr));
+#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
+  if ((mgr->epoll_fd = epoll_create1(0)) < 0) {
+    LOG(LL_ERROR, ("epoll: %d", MG_SOCK_ERRNO));
+    mgr->epoll_fd = -1;
+  }
+#else
+  mgr->epoll_fd = -1;
+#endif
 #if defined(_WIN32) && MG_ENABLE_WINSOCK
   // clang-format off
   { WSADATA data; WSAStartup(MAKEWORD(2, 2), &data); }
@@ -3023,9 +3034,9 @@ void close_conn(struct mg_connection *c) {
   if (c == c->mgr->dns6.c) c->mgr->dns6.c = NULL;
   mg_call(c, MG_EV_CLOSE, NULL);
 
-  // while (c->callbacks != NULL) mg_fn_del(c, c->callbacks->fn);
   LOG(LL_DEBUG, ("%lu closed", c->id));
   if (FD(c) != INVALID_SOCKET) {
+    MG_EPOLL_DEL(c);
     closesocket(FD(c));
 #if MG_ARCH == MG_ARCH_FREERTOS_TCP
     FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
@@ -3047,12 +3058,12 @@ void w_close_conn(struct mg_connection *c)
 
     LOG(LL_DEBUG, ("%lu closed", c->id));
     if (FD(c) != INVALID_SOCKET) {
-      closesocket(FD(c));
-  #if MG_ARCH == MG_ARCH_FREERTOS_TCP
-      FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
-  #endif
+        MG_EPOLL_DEL(c);
+        closesocket(FD(c));
+#if MG_ARCH == MG_ARCH_FREERTOS_TCP
+        FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
+#endif
     }
-
     mg_tls_free(c);
     free(c->recv.buf);
     free(c->send.buf);
@@ -3111,6 +3122,7 @@ void mg_connect_resolved(struct mg_connection *c) {
 #endif
     if ((rc = connect(FD(c), &usa.sa, slen)) == 0 || mg_sock_would_block()) {
       setsockopts(c);
+      MG_EPOLL_ADD(c);
       if (rc != 0) c->is_connecting = 1;
     } else {
       mg_error(c, "connect: %d", MG_SOCK_ERRNO);
@@ -3143,13 +3155,9 @@ static void accept_conn(struct mg_mgr *mgr, struct mg_connection *lsn) {
   SOCKET fd = accept(FD(lsn), &usa.sa, &sa_len);
   if (fd == INVALID_SOCKET) {
     LOG(LL_ERROR, ("%lu accept failed, errno %d", lsn->id, MG_SOCK_ERRNO));
-#if (!defined(_WIN32) && (MG_ARCH != MG_ARCH_FREERTOS_TCP) && !defined(USE_EPOLL))
+#if !defined(_WIN32) && (MG_ARCH != MG_ARCH_FREERTOS_TCP)
   } else if ((long) fd >= FD_SETSIZE) {
     LOG(LL_ERROR, ("%ld > %ld", (long) fd, (long) FD_SETSIZE));
-    closesocket(fd);
-#elif defined(USE_EPOLL)
-  } else if ((long) fd >= EPOLL_MAX_FD_NUM) {
-    LOG(LL_ERROR, ("%ld > %ld", (long) fd, (long) EPOLL_MAX_FD_NUM));
     closesocket(fd);
 #endif
   } else if ((c = alloc_conn(mgr, 0, fd)) == NULL) {
@@ -3178,6 +3186,7 @@ static void accept_conn(struct mg_mgr *mgr, struct mg_connection *lsn) {
     c->fn = lsn->fn;
     c->fn_data = lsn->fn_data;
     mg_call(c, MG_EV_ACCEPT, NULL);
+    MG_EPOLL_ADD(c);
   }
 }
 
@@ -3241,6 +3250,7 @@ struct mg_connection *mg_listen(struct mg_mgr *mgr, const char *url,
     LIST_ADD_HEAD(struct mg_connection, &mgr->conns, c);
     c->fn = fn;
     c->fn_data = fn_data;
+    MG_EPOLL_ADD(c);
     LOG(LL_INFO,
         ("%lu accepting on %s (port %u)", c->id, url, mg_ntohs(c->peer.port)));
   }
@@ -3264,61 +3274,61 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
     FreeRTOS_FD_CLR(c->fd, mgr->ss,
                     eSELECT_READ | eSELECT_EXCEPT | eSELECT_WRITE);
   }
-#elif defined(USE_EPOLL)
+#elif defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
   struct mg_connection *c;
-  int rc;
-  int efd = -1;
-  struct epoll_event evtList[EPOLL_MAX_FD_NUM];
-
-  efd = epoll_create(EPOLL_MAX_FD_NUM);
-
-  for (c = mgr->conns; c != NULL; c = c->next)
-  {
-      if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET)
-      {
-          continue;
-      }
-
-      c->is_writable = 0;
-      if (c->is_tls && c->is_readable)
-      {
-          c->is_readable = 1;
-      }
-      else
-      {
-          c->is_readable = 0;
-      }
-
-      struct epoll_event event;
-      event.data.ptr = (void *)c;
-      event.events = EPOLLIN | EPOLLET;
-      if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0))
-      {
-          event.events = EPOLLIN | EPOLLOUT | EPOLLET;
-      }
-      epoll_ctl(efd, EPOLL_CTL_ADD, FD(c), &event);
+  size_t max = 0;
+  for (c = mgr->conns; c != NULL; c = c->next) max++;
+  if (max == 0) { struct timespec ts = {ms / 1000, (ms % 1000) * 1000000}; nanosleep(&ts, NULL); return; }
+  struct epoll_event *evs = (struct epoll_event *) alloca(max * sizeof(evs[0]));
+  // Reset readiness flags, update epoll for writable connections
+  for (c = mgr->conns; c != NULL; c = c->next) {
+    c->is_readable = c->is_writable = 0;
+    if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
+    if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0))
+      MG_EPOLL_MOD(c, 1); // 通过EPOLL_CTL_MOD可以重新监听写事件
   }
-
-  if ((rc = epoll_wait(efd, evtList, EPOLL_MAX_FD_NUM, ms)) < 0)
-  {
-      LOG(LL_DEBUG, ("epoll: %d %d", rc, MG_SOCK_ERRNO));
+  // epoll_wait on the persistent epoll_fd
+  int n = epoll_wait(mgr->epoll_fd, evs, (int) max, ms);
+  for (int i = 0; i < n; i++) {
+    struct mg_connection *c = (struct mg_connection *) evs[i].data.ptr;
+    if (evs[i].events & EPOLLERR) {
+      c->is_readable = 1;  // trigger error handling
+    } else {
+      if (evs[i].events & (EPOLLIN | EPOLLHUP)) c->is_readable = 1;
+      if (evs[i].events & EPOLLOUT) c->is_writable = 1;
+    }
   }
-
-  for(int i = 0; i < rc; ++i)
-  {
-      c = (struct mg_connection *)evtList[i].data.ptr;
-      if (evtList[i].events & EPOLLIN)
-      {
-          c->is_readable = 1;
-      }
-
-      if (evtList[i].events & EPOLLOUT)
-      {
-          c->is_writable = 1;
-      }
+#elif defined(MG_ENABLE_POLL) && MG_ENABLE_POLL
+  nfds_t n = 0;
+  struct mg_connection *c;
+  for (c = mgr->conns; c != NULL; c = c->next) n++;
+  if (n == 0) { struct timespec ts = {ms / 1000, (ms % 1000) * 1000000}; nanosleep(&ts, NULL); return; }
+  struct pollfd *fds = (struct pollfd *) alloca(n * sizeof(fds[0])); // alloca是在栈上分配内存，实际就是局部数组
+  memset(fds, 0, n * sizeof(fds[0]));
+  n = 0;
+  for (c = mgr->conns; c != NULL; c = c->next) {
+    c->is_readable = c->is_writable = 0;
+    if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
+    fds[n].fd = FD(c);
+    if (!c->is_tls || c->is_readable) fds[n].events |= POLLIN;
+    if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0)) fds[n].events |= POLLOUT;
+    n++;
   }
-
-  close(efd);
+  if (poll(fds, n, ms) < 0) {
+    LOG(LL_DEBUG, ("poll: %d %d", n, MG_SOCK_ERRNO));
+    memset(fds, 0, n * sizeof(fds[0]));
+  }
+  n = 0;
+  for (c = mgr->conns; c != NULL; c = c->next) {
+    if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
+    if (fds[n].revents & POLLERR) {
+      c->is_readable = 1;  // trigger error handling
+    } else {
+      c->is_readable = (fds[n].revents & (POLLIN | POLLHUP)) ? 1 : 0;
+      c->is_writable = (fds[n].revents & POLLOUT) ? 1 : 0;
+    }
+    n++;
+  }
 #else
   struct timeval tv = {ms / 1000, (ms % 1000) * 1000};
   struct mg_connection *c;
@@ -3330,9 +3340,6 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   FD_ZERO(&wset);
 
   for (c = mgr->conns; c != NULL; c = c->next) {
-    // c->is_writable = 0;
-    // TLS might have stuff buffered, so dig everything
-    // c->is_readable = c->is_tls && c->is_readable ? 1 : 0;
     if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
     FD_SET(FD(c), &rset);
     if (FD(c) > maxfd) maxfd = FD(c);
@@ -3347,7 +3354,6 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   }
 
   for (c = mgr->conns; c != NULL; c = c->next) {
-    // TLS might have stuff buffered, so dig everything
     c->is_readable = c->is_tls && c->is_readable
                          ? 1
                          : FD(c) != INVALID_SOCKET && FD_ISSET(FD(c), &rset);
@@ -3368,6 +3374,7 @@ static void connect_conn(struct mg_connection *c) {
     char buf[40];
     mg_error(c, "error connecting to %s", mg_straddr(c, buf, sizeof(buf)));
   } else {
+    MG_EPOLL_MOD(c, 0);
     if (c->is_tls_hs) mg_tls_handshake(c);
     mg_call(c, MG_EV_CONNECT, NULL);
   }

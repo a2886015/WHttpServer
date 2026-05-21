@@ -286,11 +286,21 @@ struct timeval {
 #include <time.h>
 #include <unistd.h>
 
-// #define USE_EPOLL
+// epoll/poll auto-detection: epoll on Linux, poll on other Unix-like systems
+#if !defined(MG_ENABLE_EPOLL) && defined(__linux__)
+#define MG_ENABLE_EPOLL 1
+#elif !defined(MG_ENABLE_POLL) && !defined(_WIN32) && (MG_ARCH != MG_ARCH_FREERTOS_TCP)
+#define MG_ENABLE_POLL 1
+#endif
 
-#ifdef USE_EPOLL
+#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
 #include <sys/epoll.h>
-#define EPOLL_MAX_FD_NUM 4096
+#elif defined(MG_ENABLE_POLL) && MG_ENABLE_POLL
+#include <poll.h>
+#ifndef NFDS_T
+typedef unsigned int nfds_t;
+#define NFDS_T
+#endif
 #endif
 
 #define MG_DIRSEP '/'
@@ -724,6 +734,7 @@ struct mg_mgr {
   int dnstimeout;               // DNS resolve timeout in milliseconds
   unsigned long nextid;         // Next connection ID
   void *userdata;               // Arbitrary user data pointer
+  int epoll_fd;                 // Used when MG_ENABLE_EPOLL=1
 #if MG_ARCH == MG_ARCH_FREERTOS_TCP
   SocketSet_t ss;  // NOTE(lsm): referenced from socket struct
 #endif
@@ -774,6 +785,29 @@ struct mg_connection {
 void mg_mgr_poll(struct mg_mgr *, int ms);
 void mg_mgr_init(struct mg_mgr *);
 void mg_mgr_free(struct mg_mgr *);
+
+// epoll helpers: register/unregister/modify a connection's fd in the epoll set
+#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
+#define MG_EPOLL_DEL(c)                                                \
+  do {                                                                 \
+    epoll_ctl(c->mgr->epoll_fd, EPOLL_CTL_DEL, (int) (size_t) c->fd, NULL); \
+  } while (0)
+#define MG_EPOLL_ADD(c)                                                    \
+  do {                                                                     \
+    struct epoll_event ev = {EPOLLIN | EPOLLERR | EPOLLHUP, {(void *) c}}; \
+    epoll_ctl(c->mgr->epoll_fd, EPOLL_CTL_ADD, (int) (size_t) c->fd, &ev); \
+  } while (0)
+#define MG_EPOLL_MOD(c, wr)                                                \
+  do {                                                                     \
+    struct epoll_event ev = {EPOLLIN | EPOLLERR | EPOLLHUP, {(void *) c}}; \
+    if (wr) ev.events |= EPOLLOUT;                                         \
+    epoll_ctl(c->mgr->epoll_fd, EPOLL_CTL_MOD, (int) (size_t) c->fd, &ev); \
+  } while (0)
+#else
+#define MG_EPOLL_ADD(c)
+#define MG_EPOLL_DEL(c)
+#define MG_EPOLL_MOD(c, wr)
+#endif
 
 struct mg_connection *mg_listen(struct mg_mgr *, const char *url,
                                 mg_event_handler_t fn, void *fn_data);
