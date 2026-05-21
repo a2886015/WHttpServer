@@ -788,6 +788,10 @@ void mg_mgr_free(struct mg_mgr *);
 
 // epoll helpers: register/unregister/modify a connection's fd in the epoll set
 #if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
+#define MG_EPOLL_DEL(c)                                                \
+  do {                                                                 \
+    epoll_ctl(c->mgr->epoll_fd, EPOLL_CTL_DEL, (int) (size_t) c->fd, NULL); \
+  } while (0)
 #define MG_EPOLL_ADD(c)                                                    \
   do {                                                                     \
     struct epoll_event ev = {EPOLLIN | EPOLLERR | EPOLLHUP, {(void *) c}}; \
@@ -801,6 +805,7 @@ void mg_mgr_free(struct mg_mgr *);
   } while (0)
 #else
 #define MG_EPOLL_ADD(c)
+#define MG_EPOLL_DEL(c)
 #define MG_EPOLL_MOD(c, wr)
 #endif
 

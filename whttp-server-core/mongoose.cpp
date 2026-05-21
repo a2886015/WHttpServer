@@ -2371,8 +2371,10 @@ void mg_mgr_free(struct mg_mgr *mgr) {
 void mg_mgr_init(struct mg_mgr *mgr) {
   memset(mgr, 0, sizeof(*mgr));
 #if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
-  if ((mgr->epoll_fd = epoll_create1(0)) < 0)
+  if ((mgr->epoll_fd = epoll_create1(0)) < 0) {
     LOG(LL_ERROR, ("epoll: %d", MG_SOCK_ERRNO));
+    mgr->epoll_fd = -1;
+  }
 #else
   mgr->epoll_fd = -1;
 #endif
@@ -3034,9 +3036,7 @@ void close_conn(struct mg_connection *c) {
 
   LOG(LL_DEBUG, ("%lu closed", c->id));
   if (FD(c) != INVALID_SOCKET) {
-#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
-    epoll_ctl(c->mgr->epoll_fd, EPOLL_CTL_DEL, FD(c), NULL);
-#endif
+    MG_EPOLL_DEL(c);
     closesocket(FD(c));
 #if MG_ARCH == MG_ARCH_FREERTOS_TCP
     FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
@@ -3058,9 +3058,7 @@ void w_close_conn(struct mg_connection *c)
 
     LOG(LL_DEBUG, ("%lu closed", c->id));
     if (FD(c) != INVALID_SOCKET) {
-#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
-        epoll_ctl(c->mgr->epoll_fd, EPOLL_CTL_DEL, FD(c), NULL);
-#endif
+        MG_EPOLL_DEL(c);
         closesocket(FD(c));
 #if MG_ARCH == MG_ARCH_FREERTOS_TCP
         FreeRTOS_FD_CLR(c->fd, c->mgr->ss, eSELECT_ALL);
