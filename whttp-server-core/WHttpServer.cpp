@@ -436,16 +436,17 @@ void WHttpServer::reset()
 
 void WHttpServer::logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData)
 {
-    if (httpCbData->message.len < 4096)
+    // 注意message不一定是一次性接受完成的，httpCbData->message.len可能很大，但是真实可用的len实际上是conn->recv.len，但是接收没有完成的时候，至少是有MG_IO_SIZE大小的
+    if (conn->recv.len < 2048)
     {
         HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, message: %s", conn->is_tls ? "https" : "http", conn->id, httpCbData->message.ptr);
     }
     else
     {
-        char msg[4097] = {0};
-        memcpy(msg, httpCbData->message.ptr, 4096);
-        msg[4096] = '\0';
-        HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 4096 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
+        char msg[2049] = {0};
+        memcpy(msg, httpCbData->message.ptr, 2048);
+        msg[2048] = '\0';
+        HLogi("WHttpServer::logHttpRequestMsg %s request id:%ld, pre 2048 message: %s", conn->is_tls ? "https" : "http", conn->id, msg);
     }
 }
 
