@@ -346,7 +346,7 @@ static void mg_sendnsreq(struct mg_connection *c, struct mg_str *name, int ms,
     dnsc->c = mg_connect(c->mgr, dnsc->url, NULL, NULL);
     if (dnsc->c != NULL) {
       dnsc->c->pfn = dns_cb;
-      snprintf(dnsc->c->label, sizeof(dnsc->c->label), "%s", "DNS");
+      snprintf(const_cast<char*>(dnsc->c->label), sizeof(dnsc->c->label), "%s", "DNS");
       // dnsc->c->is_hexdumping = 1;
     }
   }
@@ -2826,7 +2826,7 @@ static struct mg_connection *alloc_conn(struct mg_mgr *mgr, bool is_client,
     c->fd = sock2ptr(fd);
     c->mgr = mgr;
     c->id = ++mgr->nextid;
-    memset(c->label, 0, sizeof(c->label));
+    memset(const_cast<char*>(c->label), 0, sizeof(c->label));
     c->tls = NULL;
   }
   return c;
