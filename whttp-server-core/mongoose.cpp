@@ -3310,7 +3310,7 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
     c->is_readable = c->is_writable = 0;
     if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
     fds[n].fd = FD(c);
-    if (!c->is_tls || c->is_readable) fds[n].events |= POLLIN;
+    fds[n].events |= POLLIN;  // 修复：无条件监听读事件，否则 TLS 连接无法接收数据
     if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0)) fds[n].events |= POLLOUT;
     n++;
   }
