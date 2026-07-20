@@ -2075,6 +2075,16 @@ void mg_mqtt_sub(struct mg_connection *c, struct mg_str *topic, int qos) {
   mg_send(c, &qos_, sizeof(qos_));
 }
 
+void mg_mqtt_unsub(struct mg_connection *c, struct mg_str *topic) {
+  static uint16_t s_id;
+  uint32_t total_len = 2 + (uint32_t) topic->len + 2;
+  mg_mqtt_send_header(c, MQTT_CMD_UNSUBSCRIBE, 2, total_len);
+  if (++s_id == 0) ++s_id;
+  mg_send_u16(c, mg_htons(s_id));
+  mg_send_u16(c, mg_htons((uint16_t) topic->len));
+  mg_send(c, topic->ptr, topic->len);
+}
+
 int mg_mqtt_parse(const uint8_t *buf, size_t len, struct mg_mqtt_message *m) {
   uint8_t lc = 0, *p, *end;
   uint32_t n = 0, len_len = 0;
@@ -2107,16 +2117,14 @@ int mg_mqtt_parse(const uint8_t *buf, size_t len, struct mg_mqtt_message *m) {
     case MQTT_CMD_PUBREC:
     case MQTT_CMD_PUBREL:
     case MQTT_CMD_PUBCOMP:
+    case MQTT_CMD_SUBSCRIBE:
     case MQTT_CMD_SUBACK:
-      if (p + 2 > end) return MQTT_MALFORMED;
-      m->id = (uint16_t)((((uint16_t) p[0]) << 8) | p[1]);
-      break;
-    case MQTT_CMD_SUBSCRIBE: {
+    case MQTT_CMD_UNSUBSCRIBE:
+    case MQTT_CMD_UNSUBACK:
       if (p + 2 > end) return MQTT_MALFORMED;
       m->id = (uint16_t)((((uint16_t) p[0]) << 8) | p[1]);
       p += 2;
       break;
-    }
     case MQTT_CMD_PUBLISH: {
       if (p + 2 > end) return MQTT_MALFORMED;
       m->topic.len = (uint16_t)((((uint16_t) p[0]) << 8) | p[1]);
@@ -2192,7 +2200,27 @@ static void mqtt_cb(struct mg_connection *c, int ev, void *ev_data,
           case MQTT_CMD_PUBLISH: {
             LOG(LL_DEBUG, ("%lu [%.*s] -> [%.*s]", c->id, (int) mm.topic.len,
                            mm.topic.ptr, (int) mm.data.len, mm.data.ptr));
+            // QoS 2: 回复 PUBREC（QoS 2 握手第一步，第二步 PUBREL 由发送方收到后触发）
+            if (mm.qos == 2 && mm.id > 0) {
+              uint16_t id = mg_htons(mm.id);
+              mg_mqtt_send_header(c, MQTT_CMD_PUBREC, 0, 2);
+              mg_send(c, &id, sizeof(id));
+            }
             mg_call(c, MG_EV_MQTT_MSG, &mm);
+            break;
+          }
+          case MQTT_CMD_PUBREC: {
+            // QoS 2 握手第二步：收到 PUBREC，回复 PUBREL
+            uint16_t id = mg_htons(mm.id);
+            mg_mqtt_send_header(c, MQTT_CMD_PUBREL, 2, 2);
+            mg_send(c, &id, sizeof(id));
+            break;
+          }
+          case MQTT_CMD_PUBREL: {
+            // QoS 2 握手第三步：收到 PUBREL，回复 PUBCOMP，完成握手
+            uint16_t id = mg_htons(mm.id);
+            mg_mqtt_send_header(c, MQTT_CMD_PUBCOMP, 0, 2);
+            mg_send(c, &id, sizeof(id));
             break;
           }
         }
@@ -4597,6 +4625,59 @@ size_t mg_ws_send(struct mg_connection *c, const char *buf, size_t len,
     for (i = 0; i < len; i++) p[i] ^= mask[i & 3];
   }
   return header_len + len;
+}
+
+// 构建 WS 帧头（从 7.21 移植，供 mg_ws_wrap 使用）
+static size_t mkhdr(size_t len, int op, bool is_client, uint8_t *buf) {
+  size_t n = 0;
+  buf[0] = (uint8_t)(op | 128);
+  if (len < 126) {
+    buf[1] = (unsigned char) len;
+    n = 2;
+  } else if (len < 65536) {
+    uint16_t tmp = mg_htons((uint16_t) len);
+    buf[1] = 126;
+    memcpy(&buf[2], &tmp, sizeof(tmp));
+    n = 4;
+  } else {
+    uint32_t tmp;
+    buf[1] = 127;
+    tmp = mg_htonl((uint32_t)(((uint64_t) len) >> 32));
+    memcpy(&buf[2], &tmp, sizeof(tmp));
+    tmp = mg_htonl((uint32_t)(len & 0xffffffffU));
+    memcpy(&buf[6], &tmp, sizeof(tmp));
+    n = 10;
+  }
+  if (is_client) {
+    buf[1] |= 1 << 7;
+    mg_random(&buf[n], 4);
+    n += 4;
+  }
+  return n;
+}
+
+// WS 帧掩码（仅客户端连接需要，从 7.21 移植）
+static void mg_ws_mask(struct mg_connection *c, size_t len) {
+  if (c->is_client && c->send.buf != NULL) {
+    size_t i;
+    uint8_t *p = c->send.buf + c->send.len - len, *mask = p - 4;
+    for (i = 0; i < len; i++) p[i] ^= mask[i & 3];
+  }
+}
+
+// 将 send buffer 末尾新增的 len 字节包装为 WS 帧（从 7.21 移植）
+// 使用方式：先调用 mg_mqtt_* 写入 MQTT 数据，再调用此函数包装为 WS 二进制帧
+size_t mg_ws_wrap(struct mg_connection *c, size_t len, int op) {
+  uint8_t header[14], *p;
+  size_t header_len = mkhdr(len, op, c->is_client, header);
+  // 7.3 没有 mg_iobuf_add，用 mg_iobuf_append(NULL) 替代（扩展 len 但不写数据）
+  if (mg_iobuf_append(&c->send, NULL, header_len, 256) != 0) {
+    p = &c->send.buf[c->send.len - len];
+    memmove(p, p - header_len, len);
+    memcpy(p - header_len, header, header_len);
+    mg_ws_mask(c, len);
+  }
+  return c->send.len;
 }
 
 static void mg_ws_cb(struct mg_connection *c, int ev, void *ev_data,
