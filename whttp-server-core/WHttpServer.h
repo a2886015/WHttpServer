@@ -17,7 +17,7 @@
 
 #define MAX_KEEP_ALIVE_NUM 100
 #define KEEP_ALIVE_TIME 5 // 5s
-#define W_MAX_DOWNLOAD_PAUSE_TIME 60 // 60s
+#define W_MAX_DOWNLOAD_PAUSE_TIME 60
 
 class WHttpServer;
 struct WHttpServerCbMsg
@@ -79,8 +79,10 @@ public:
     static void toLowerString(string &str);
     static void toUpperString(string &str);
     static int64_t str2ll(const string &str, int64_t errValue = 0);
-    static std::string urlDecode(const std::string& input, bool isFormEncoded = false);
-    static std::string urlEncode(const std::string& input, bool isFormEncoded = false);
+    static std::string urlDecode(const std::string& input, bool isQueryOrForm = true);
+    static std::string urlEncode(const std::string& input, bool isQueryOrForm = true);
+    static std::string base64ToUrlSafe(const std::string& base64);
+    static std::string urlSafeToBase64(const std::string& urlSafe);
     static int hexToInt(char c);
     static uint64_t getSysTickCountInMilliseconds();
     // range下载时外部可以使用到，用于解析下载范围

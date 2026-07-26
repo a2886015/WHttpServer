@@ -248,7 +248,7 @@ std::set<string> WHttpServer::getSupportMethods(int httpMethods)
 
 bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStaticWebDir &webDir)
 {
-    string filePath = webDir.dirPath + urlDecode(httpMsg->uri);
+    string filePath = webDir.dirPath + urlDecode(httpMsg->uri, false);
 
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
@@ -463,8 +463,8 @@ void WHttpServer::handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode,
             releaseHttpReqMsg(_workingMsgMap[connId]);
             _workingMsgMap.erase(connId);
             httpMsg = parseHttpMsgWhenAbnormal(conn);
-            httpMsg->isKeepingAlive = false;
-            _currentKeepAliveNum--;
+            httpMsg->isKeepingAlive = true;
+            // _currentKeepAliveNum--; // 换到MG_EV_CLOSE回调中修改这个
         }
         else
         {
@@ -485,12 +485,15 @@ void WHttpServer::handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode,
 
 void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, string head, string body)
 {
+    bool isHead = (httpMsg->method == "HEAD");
     stringstream sstream;
     sstream << "HTTP/1.1 " << httpCode << " " << mg_http_status_code_str(httpCode) << "\r\n";
     sstream << "Content-Type: application/json\r\n";
     sstream << "Cache-Control: no-store, no-cache" << "\r\n";
     sstream << "Expires: Thu, 01 Jan 1970 00:00:00 GMT" << "\r\n";
-    if (httpMsg->isKeepingAlive)
+    // HEAD响应按HTTP约定只发响应头不带body：Content-Length保留为GET应返回的长度（与GET语义一致），
+    // 强制Connection: close，避免客户端在keep-alive连接上等待不存在的body导致后续请求错位
+    if (httpMsg->isKeepingAlive && !isHead)
     {
         sstream << "Connection: keep-alive\r\n";
     }
@@ -504,7 +507,10 @@ void WHttpServer::httpReplyJson(shared_ptr<HttpReqMsg> httpMsg, int httpCode, st
         sstream << head;
     }
     sstream << "Content-Length: " << body.size() << "\r\n\r\n";
-    sstream << body;
+    if (!isHead)
+    {
+        sstream << body;
+    }
 
     string data = sstream.str();
     addSendMsgToQueue(httpMsg, data.c_str(), data.size());
@@ -744,16 +750,26 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
             return;
         }
 
+        shared_ptr<HttpReqMsg> httpReqMsg = _workingMsgMap[connId];
         if (conn->label[W_FD_STATUS_BIT] == HTTP_NORMAL_CLOSE)
         {
+            if (httpReqMsg->isKeepingAlive)
+            {
+                _currentKeepAliveNum--;
+            }
+
             w_close_conn(conn);
-            releaseHttpReqMsg(_workingMsgMap[connId]);
+            releaseHttpReqMsg(httpReqMsg);
             _workingMsgMap.erase(connId);
             return;
         }
 
         conn->label[W_CLIENT_CLOSE_BIT] = 1;
         _clientSelfCloseList.push_back(conn);
+        if (httpReqMsg->isKeepingAlive) // keep-alive时，若客户端主动断开，则也需要处理_currentKeepAliveNum值
+        {
+            _currentKeepAliveNum--;
+        }
     }
     else if (msgType == MG_EV_ERROR)
     {
@@ -860,6 +876,7 @@ void WHttpServer::sendHttpMsgPoll()
     {
         currentTime = getSysTickCountInMilliseconds();
     }
+
     std::map<int64_t, shared_ptr<HttpReqMsg>>::iterator it;
     for (it = _workingMsgMap.begin(); it != _workingMsgMap.end(); it++)
     {
@@ -872,7 +889,7 @@ void WHttpServer::sendHttpMsgPoll()
             if ((currentTime - httpMsg->lastKeepAliveTime > KEEP_ALIVE_TIME * 1000))
             {
                 conn->label[W_FD_STATUS_BIT] = HTTP_NORMAL_CLOSE;
-                _currentKeepAliveNum--;
+                // _currentKeepAliveNum--; // 换到在MG_EV_CLOSE回调中修改这个值
             }
         }
 
@@ -1181,7 +1198,65 @@ int64_t WHttpServer::str2ll(const string &str, int64_t errValue)
     }
 }
 
-string WHttpServer::urlDecode(const string &input, bool isFormEncoded)
+string WHttpServer::urlSafeToBase64(const string &urlSafe)
+{
+    std::string base64 = urlSafe;
+
+    for (size_t i = 0; i < base64.size(); i++)
+    {
+        if (base64[i] == '-')
+        {
+            base64[i] = '+';
+        }
+
+        if (base64[i] == '_')
+        {
+            base64[i] = '/';
+        }
+    }
+
+    // 恢复 '=' 填充
+    size_t padding = base64.size() % 4;
+    if (padding) {
+        base64.append(4 - padding, '=');
+    }
+
+    return base64;
+}
+
+string WHttpServer::base64ToUrlSafe(const string &base64)
+{
+    std::string urlSafe = base64;
+
+    size_t equalSignPos = 0;
+    for (size_t i = 0; i < urlSafe.size(); i++)
+    {
+        if (urlSafe[i] == '+')
+        {
+            urlSafe[i] = '-';
+        }
+
+        if (urlSafe[i] == '/')
+        {
+            urlSafe[i] = '_';
+        }
+
+        if (urlSafe[i] == '=')
+        {
+            equalSignPos = i;
+            break;
+        }
+    }
+
+    // 移除或替换尾部的 '='
+    if (equalSignPos > 0) {
+        urlSafe.erase(equalSignPos);
+    }
+
+    return urlSafe;
+}
+
+string WHttpServer::urlDecode(const string &input, bool isQueryOrForm)
 {
     std::string result;
     size_t i = 0;
@@ -1203,7 +1278,7 @@ string WHttpServer::urlDecode(const string &input, bool isFormEncoded)
             result += static_cast<char>((hex1 << 4) | hex2);
             i += 3; // 跳过%XX三个字符
         }
-        else if (isFormEncoded && input[i] == '+') { // 表单模式下，+号转为空格
+        else if (isQueryOrForm && input[i] == '+') { // 表单模式下，+号转为空格
             result += ' ';
             i++;
         }
@@ -1216,7 +1291,7 @@ string WHttpServer::urlDecode(const string &input, bool isFormEncoded)
     return result;
 }
 
-string WHttpServer::urlEncode(const string &input, bool isFormEncoded)
+string WHttpServer::urlEncode(const string &input, bool isQueryOrForm)
 {
     std::ostringstream oss;
     oss << std::hex << std::uppercase;
@@ -1226,7 +1301,7 @@ string WHttpServer::urlEncode(const string &input, bool isFormEncoded)
             oss << c;
         }
         else if (c == ' ') { // 空格处理：表单模式下转为+，否则转为%20
-            oss << (isFormEncoded ? "+" : "%20");
+            oss << (isQueryOrForm ? "+" : "%20");
         }
         else {  // 其他字符按UTF-8字节编码为%XX
             oss << "%" << std::setw(2) << std::setfill('0') << static_cast<int>(c);
