@@ -577,7 +577,7 @@ bool WHttpServer::addStaticWebDir(const string &dir, const string &header)
 
 uint64_t WHttpServer::addTimerEvent(unsigned long ms, WTimerEventFun timerEventFun, WTimerRunType runType)
 {
-    uint16_t timerId = _currentTimerId++;
+    uint64_t timerId = _currentTimerId++;
     WTimerData *timerData = new WTimerData();
     timerData->timerFun = timerEventFun;
     timerData->timeId = timerId;
