@@ -183,7 +183,6 @@ bool HttpExample::parseMultipartStream(string &parseBuf, string &extraDataBuf, s
                     FILE *tmpWriter = fopen(filePath.c_str(), "w");
                     if (!tmpWriter)
                     {
-                        delete tmpWriter;
                         errMsg = string("can not open file ") + filePath;
                         return false;
                     }
