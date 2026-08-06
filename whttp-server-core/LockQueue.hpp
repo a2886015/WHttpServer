@@ -1,6 +1,9 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
 #include <mutex>
+#include <new>
 
 template <typename T>
 class LockQueue
@@ -67,7 +70,7 @@ public:
 
     int64_t size()
     {
-        return _queueSize;
+        return _queueSize.load();
     }
 
     void clear()
@@ -78,12 +81,11 @@ public:
 
     bool empty()
     {
-        return (_queueSize <= 0);
+        return (_queueSize.load() <= 0);
     }
 private:
     QueueNode *_head;
     QueueNode *_tail;
-    int64_t _queueSize = 0;
+    std::atomic<int64_t> _queueSize{0};
     std::mutex _mutex;
 };
-
