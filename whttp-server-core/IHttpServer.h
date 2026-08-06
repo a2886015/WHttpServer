@@ -7,7 +7,6 @@
 #include "LockQueue.hpp"
 #include <time.h>
 #include <functional>
-#include <sstream>
 #include "WThreadPool.h"
 
 using namespace std;
