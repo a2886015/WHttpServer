@@ -90,7 +90,7 @@ private:
     int _maxThreadNum = 8;
     std::atomic<int> _busyThreadNum = {0};
     int _stepThreadNum = 4;
-    volatile bool _exitAllFlag = false;
+    std::atomic<bool> _exitAllFlag  {false};
     std::atomic<int> _reduceThreadNum = {0};
 
     std::shared_ptr<std::thread> _mgrThread;
