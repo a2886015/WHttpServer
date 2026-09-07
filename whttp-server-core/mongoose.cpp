@@ -3049,6 +3049,8 @@ static void write_conn(struct mg_connection *c) {
     }
     mg_iobuf_delete(&c->send, (size_t) n);
     if (c->send.len == 0) mg_iobuf_resize(&c->send, 0);
+    // 避免空闲连接被电平触发反复上报可写事件
+    if (c->send.len == 0) MG_EPOLL_MOD(c, 0);
     mg_call(c, MG_EV_WRITE, &n);
     // if (c->send.len == 0) mg_iobuf_resize(&c->send, 0);
   }
@@ -3183,7 +3185,11 @@ static void accept_conn(struct mg_mgr *mgr, struct mg_connection *lsn) {
   SOCKET fd = accept(FD(lsn), &usa.sa, &sa_len);
   if (fd == INVALID_SOCKET) {
     LOG(LL_ERROR, ("%lu accept failed, errno %d", lsn->id, MG_SOCK_ERRNO));
-#if !defined(_WIN32) && (MG_ARCH != MG_ARCH_FREERTOS_TCP)
+// FD_SETSIZE(1024)限制只对select有意义(FD_SET越界是UB)，poll/epoll均不受限，跳过该检查；
+// fd编号是进程全局的，静态文件服务频繁fopen也占用编号，高负载下保留该检查会误拒新连接
+#if !defined(_WIN32) && (MG_ARCH != MG_ARCH_FREERTOS_TCP) \
+    && !(defined(MG_ENABLE_POLL) && MG_ENABLE_POLL) \
+    && !(defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL)
   } else if ((long) fd >= FD_SETSIZE) {
     LOG(LL_ERROR, ("%ld > %ld", (long) fd, (long) FD_SETSIZE));
     closesocket(fd);
@@ -3323,7 +3329,10 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
       c->is_readable = 1;  // trigger error handling
     } else {
       if (evs[i].events & (EPOLLIN | EPOLLHUP)) c->is_readable = 1;
-      if (evs[i].events & EPOLLOUT) c->is_writable = 1;
+      // 防止 EPOLLOUT 常驻导致 write_conn 以 len=0 调 send() 返回 0 被误判为错误而提前关闭连接
+      // write_conn里面用MG_EPOLL_MOD去掉可写是第一重保护，这里额外的判断是第2重保护
+      if ((evs[i].events & EPOLLOUT) && (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0)))
+        c->is_writable = 1;
     }
   }
 #elif defined(MG_ENABLE_POLL) && MG_ENABLE_POLL
@@ -3332,6 +3341,10 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
   for (c = mgr->conns; c != NULL; c = c->next) n++;
   if (n == 0) { struct timespec ts = {ms / 1000, (ms % 1000) * 1000000}; nanosleep(&ts, NULL); return; }
   struct pollfd *fds = (struct pollfd *) alloca(n * sizeof(fds[0])); // alloca是在栈上分配内存，实际就是局部数组
+  // 平行指针数组显式配对fds[n]与conn（等价于epoll的data.ptr机制）：poll()阻塞期间handler线程可能
+  // 置位is_closing(forceCloseHttpConnection)，收集循环若按skip条件重新遍历链表配对，会与注册循环
+  // 产生索引错位，读到别人的revents导致误关连接/数据串话
+  struct mg_connection **cfds = (struct mg_connection **) alloca(n * sizeof(*cfds));
   memset(fds, 0, n * sizeof(fds[0]));
   n = 0;
   for (c = mgr->conns; c != NULL; c = c->next) {
@@ -3340,22 +3353,21 @@ static void mg_iotest(struct mg_mgr *mgr, int ms) {
     fds[n].fd = FD(c);
     fds[n].events |= POLLIN;  // 修复：无条件监听读事件，否则 TLS 连接无法接收数据
     if (c->is_connecting || (c->send.len > 0 && c->is_tls_hs == 0)) fds[n].events |= POLLOUT;
+    cfds[n] = c;
     n++;
   }
   if (poll(fds, n, ms) < 0) {
     LOG(LL_DEBUG, ("poll: %d %d", n, MG_SOCK_ERRNO));
     memset(fds, 0, n * sizeof(fds[0]));
   }
-  n = 0;
-  for (c = mgr->conns; c != NULL; c = c->next) {
-    if (c->is_closing || c->is_resolving || FD(c) == INVALID_SOCKET) continue;
-    if (fds[n].revents & POLLERR) {
-      c->is_readable = 1;  // trigger error handling
+  for (nfds_t i = 0; i < n; i++) { // 按注册时记录的conn指针收集，不重算skip条件，结构上杜绝索引错位
+    struct mg_connection *cc = cfds[i];
+    if (fds[i].revents & (POLLERR | POLLNVAL)) {
+      cc->is_readable = 1;  // trigger error handling（POLLNVAL一并处理，防止fd失效的连接成僵尸永不回收）
     } else {
-      c->is_readable = (fds[n].revents & (POLLIN | POLLHUP)) ? 1 : 0;
-      c->is_writable = (fds[n].revents & POLLOUT) ? 1 : 0;
+      cc->is_readable = (fds[i].revents & (POLLIN | POLLHUP)) ? 1 : 0;
+      cc->is_writable = (fds[i].revents & POLLOUT) ? 1 : 0;
     }
-    n++;
   }
 #else
   struct timeval tv = {ms / 1000, (ms % 1000) * 1000};
