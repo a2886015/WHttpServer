@@ -78,8 +78,9 @@ public:
     IHttpServer(mg_mgr * = nullptr){}
     virtual ~IHttpServer(){}
     virtual bool init(int maxEventThreadNum, WThreadPool *threadPool = nullptr) = 0;
-    virtual bool startHttp(int port) = 0;
-    virtual bool startHttps(int port, string certPath, string keyPath) = 0;
+    // ipStr: 监听的ip地址，默认0.0.0.0监听所有ipv4；ipv6可传"::"(双栈，同时接受ipv4)或"::1"等
+    virtual bool startHttp(int port, const string &ipStr = "0.0.0.0") = 0;
+    virtual bool startHttps(int port, string certPath, string keyPath, const string &ipStr = "0.0.0.0") = 0;
     virtual bool stop() = 0;
     virtual bool run(int timeoutMs) = 0;
     virtual bool isRunning() = 0;

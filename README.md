@@ -17,8 +17,8 @@ mongoose采用的版本是7.3，但是和原版的7.3版本代码已经差异较
 #### 接口说明
 
 1. bool init(int maxEventThreadNum)，初始化线程池，指定线程池最大线程数
-2. bool startHttp(int port)，开启http服务
-3. bool startHttps(int port, string certPath, string keyPath)，开启https服务
+2. bool startHttp(int port, const string &ipStr = "0.0.0.0")，开启http服务。ipStr指定监听的ip地址，默认0.0.0.0监听所有ipv4地址；也可以传特定网卡ip（如"192.168.1.100"）只监听该地址；支持ipv6，传"::"为双栈监听（同时接受ipv4和ipv6连接），传"::1"只监听ipv6回环地址
+3. bool startHttps(int port, string certPath, string keyPath, const string &ipStr = "0.0.0.0")，开启https服务，ipStr含义同startHttp
 4. bool stop()，停止http和https服务，在析构函数里面已经调用
 5. bool run(int timeoutMs)，服务运行的发动机，外部必须用一个死循环一直调用该函数
 6. bool isRunning()，查看服务是否还在运行中

@@ -54,8 +54,8 @@ public:
     WHttpServer(mg_mgr *mgr = nullptr);
     virtual ~WHttpServer();
     virtual bool init(int maxEventThreadNum, WThreadPool *threadPool = nullptr);
-    virtual bool startHttp(int port);
-    virtual bool startHttps(int port, string certPath, string keyPath);
+    virtual bool startHttp(int port, const string &ipStr = "0.0.0.0");
+    virtual bool startHttps(int port, string certPath, string keyPath, const string &ipStr = "0.0.0.0");
     virtual bool stop(); // mg_mgr是外部传入时，外部需要主动调用stop函数
     virtual bool run(int timeoutMs);
     virtual bool isRunning();
@@ -91,6 +91,7 @@ public:
     static int64_t getIntFromQuery(const map<std::string, std::string>& querys, const std::string& key, int64_t defaultValue = 0);
 
 private:
+
     volatile int _httpPort = -1;
     volatile int _httpsPort = -1;
     mg_connection *_httpServerConn = nullptr;
@@ -140,6 +141,7 @@ private:
     void reset();
     void logHttpRequestMsg(mg_connection *conn, mg_http_message *httpCbData);
     void handleHttpReplyWhenAbnormal(mg_connection *conn, int httpCode, string head, string body);
+    string formListenUrl(const string &scheme, const string &ipStr, int port); // 拼接监听url，ipv6地址需要加方括号，如 http://[::]:6200
 
     static void recvHttpRequestCallback(struct mg_connection *conn, int msgType, void *msgData, void *cbData);
     static void timerEventAdapter(void *ptr);
