@@ -353,7 +353,7 @@ void WHttpServer::formStaticWebDirResHeader(stringstream &sstream, shared_ptr<Ht
 void WHttpServer::readStaticWebFile(shared_ptr<HttpReqMsg> httpMsg, FILE *file, int64_t contentSize, int64_t startByte)
 {
     int64_t currentReadSize = 0;
-    int64_t maxPerReadSize = 1024*1024;
+    int64_t maxPerReadSize = 64*1024;
     int64_t perReadSize = contentSize > maxPerReadSize ? maxPerReadSize : contentSize;
     int64_t remainSize;
 
