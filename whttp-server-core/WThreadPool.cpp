@@ -60,6 +60,11 @@ bool WThreadPool::waitForDone(int waitMs)
     return true;
 }
 
+int64_t WThreadPool::getEventQueueSize()
+{
+    return _eventQueue.size();
+}
+
 void WThreadPool::enQueueEvent(EventFun fun)
 {
     bool res = _eventQueue.enQueue(fun);

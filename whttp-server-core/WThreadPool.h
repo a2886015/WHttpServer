@@ -85,6 +85,8 @@ public:
         return tid;
     }
 
+    int64_t getEventQueueSize();
+
 private:
     int _minThreadNum = 4;
     int _maxThreadNum = 8;
