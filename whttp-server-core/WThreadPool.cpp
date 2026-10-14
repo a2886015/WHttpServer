@@ -2,9 +2,6 @@
 
 using namespace std;
 
-shared_ptr<WThreadPool> WThreadPool::s_threadPool;
-std::mutex WThreadPool::s_globleMutex;
-
 WThreadPool::WThreadPool()
 {
     _minThreadNum = WPOOL_MIN_THREAD_NUM;
@@ -18,15 +15,9 @@ WThreadPool::~WThreadPool()
 
 WThreadPool *WThreadPool::globalInstance()
 {
-    if (!s_threadPool.get())
-    {
-        unique_lock<mutex> locker(s_globleMutex);
-        if (!s_threadPool.get())
-        {
-            s_threadPool = make_shared<WThreadPool>();
-        }
-    }
-    return s_threadPool.get();
+    // C++11函数局部静态：线程安全初始化由编译器保证（内部即带屏障的DCLP）
+    static shared_ptr<WThreadPool> s_pool = make_shared<WThreadPool>();
+    return s_pool.get();
 }
 
 void WThreadPool::setMaxThreadNum(int maxNum)
@@ -67,8 +58,14 @@ int64_t WThreadPool::getEventQueueSize()
 
 void WThreadPool::enQueueEvent(EventFun fun)
 {
-    bool res = _eventQueue.enQueue(fun);
-    assert(res);
+    if (!_eventQueue.enQueue(fun))
+    {
+        // 节点内存分配失败：就地执行，避免任务丢失、future永不就绪
+        if (fun)
+        {
+            fun();
+        }
+    }
 }
 
 EventFun WThreadPool::deQueueEvent()
@@ -82,7 +79,6 @@ EventFun WThreadPool::deQueueEvent()
     {
         return nullptr;
     }
-    return fun;
 }
 
 void WThreadPool::run()
@@ -95,11 +91,10 @@ void WThreadPool::run()
     while (!_exitAllFlag)
     {
         {
-            unique_lock<mutex> locker(_workMutex);
-            if (_eventQueue.empty() && !_exitAllFlag)
-            {
-                _workCondVar.wait(locker);
-            }
+            unique_lock<mutex> locker(_eventQueue.mutex());
+            _eventQueue.wait(locker, [this](){
+                return (!_eventQueue.empty() || _exitAllFlag || _reduceThreadNum > 0);
+            });
 
             if (_reduceThreadNum > 0)
             {
@@ -149,8 +144,8 @@ void WThreadPool::managerThread()
         {
             unique_lock<mutex> locker(_mgrMutex);
             auto now = std::chrono::steady_clock::now();
-            if (((int)_workThreadList.size() >= _maxThreadNum ||
-                 _eventQueue.size() < ((int)_workThreadList.size() - _busyThreadNum - ADD_THREAD_BOUNDARY)) && !_exitAllFlag)
+            if ((_liveThreadNum >= _maxThreadNum ||
+                 _eventQueue.size() < ((int)_liveThreadNum - _busyThreadNum - ADD_THREAD_BOUNDARY)) && !_exitAllFlag)
             {
                 _mgrCondVar.wait_until(locker, now + chrono::seconds(WPOOL_MANAGE_SECONDS));
             }
@@ -173,15 +168,14 @@ void WThreadPool::startWorkThread()
     {
         shared_ptr<thread> threadPtr = make_shared<thread>(&WThreadPool::run, this);
         _workThreadList.emplace_back(threadPtr);
+        _liveThreadNum++;
     }
 }
 
 void WThreadPool::stopWorkThread()
 {
-    {
-        unique_lock<mutex> locker(_workMutex);
-        _workCondVar.notify_all();
-    }
+
+    _eventQueue.notifyAll();
 
     for (auto it = _workThreadList.begin(); it != _workThreadList.end(); it++)
     {
@@ -191,6 +185,7 @@ void WThreadPool::stopWorkThread()
         }
     }
     _workThreadList.clear();
+    _liveThreadNum = 0;
     _threadIsRunMap.clear();
     _eventQueue.clear();
 }
@@ -199,7 +194,7 @@ void WThreadPool::adjustWorkThread()
 {
     int queueSize = _eventQueue.size();
     int busyThreadNum = _busyThreadNum;
-    int liveThreadNum = _workThreadList.size();
+    int liveThreadNum = _liveThreadNum;
     int maxThreadNum = _maxThreadNum;
     int stepThreadNum = _stepThreadNum;
     int minThreadNum = _minThreadNum;
@@ -213,6 +208,7 @@ void WThreadPool::adjustWorkThread()
         {
             shared_ptr<thread> threadPtr = make_shared<thread>(&WThreadPool::run, this);
             _workThreadList.emplace_back(threadPtr);
+            _liveThreadNum++;
         }
     }
     else if ((liveThreadNum > minThreadNum) && (busyThreadNum*2 < liveThreadNum))
@@ -230,7 +226,7 @@ void WThreadPool::adjustWorkThread()
 
             for (int i = 0; i < (reduceThreadNum - findExitThreadNum); i++)
             {
-                _workCondVar.notify_one();
+                _eventQueue.notifyOne();
             }
 
             this_thread::sleep_for(chrono::milliseconds(1));
@@ -247,6 +243,7 @@ void WThreadPool::adjustWorkThread()
                         _threadIsRunMap.erase(threadIdIt);
                         (*it)->join();
                         _workThreadList.erase(it++);
+                        _liveThreadNum--;
                     }
                     else
                     {

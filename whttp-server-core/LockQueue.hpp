@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <mutex>
 #include <new>
+#include <utility>
 
 template <typename T>
 class LockQueue
@@ -33,13 +34,12 @@ public:
 
     bool enQueue(T data)
     {
-        QueueNode *node = new (std::nothrow) QueueNode();
+        // 聚合初始化一步构造：value构造若抛异常，new-expression保证自动释放内存，不泄漏
+        QueueNode *node = new (std::nothrow) QueueNode{std::move(data), nullptr};
         if (!node)
         {
             return false;
         }
-        node->value = data;
-        node->next = nullptr;
 
         std::unique_lock<std::mutex> locker(_mutex);
         _tail->next = node;
@@ -58,7 +58,7 @@ public:
         }
 
         _head->next = currentFirstNode->next;
-        data = currentFirstNode->value;
+        data = std::move(currentFirstNode->value);
         delete  currentFirstNode;
         _queueSize--;
         if (_queueSize == 0)
@@ -86,6 +86,7 @@ public:
 private:
     QueueNode *_head;
     QueueNode *_tail;
-    std::atomic<int64_t> _queueSize{0};
+    std::atomic<int64_t> _queueSize = {0}; // size()/empty()为无锁读，与锁内增减并发，必须原子
     std::mutex _mutex;
 };
+
