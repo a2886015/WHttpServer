@@ -56,7 +56,7 @@ bool WHttpServer::init(int maxEventThreadNum, WThreadPool *threadPool)
     return true;
 }
 
-bool WHttpServer::startHttp(int port, const string &ipStr)
+bool WHttpServer::startHttp(int port)
 {
     if (!_threadPool)
     {
@@ -69,21 +69,22 @@ bool WHttpServer::startHttp(int port, const string &ipStr)
         HLogw("WHttpServer::StartHttp http server is already start port:%d", _httpPort);
         return false;
     }
-    std::string listenUrl = formListenUrl("http", ipStr, port);
+    std::stringstream sstream;
+    sstream  << "http://0.0.0.0:" << port;
     _httpCbMsg.httpServer = this;
     _httpCbMsg.httpsFlag = false;
-    _httpServerConn= mg_http_listen(_mgr, listenUrl.c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
+    _httpServerConn= mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
     if (!_httpServerConn)
     {
-        HLogw("WHttpServer::StartHttp http server start failed: %s", listenUrl.c_str());
+        HLogw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
         return false;
     }
-    HLogi("WHttpServer::StartHttp http server start success: %s", listenUrl.c_str());
+    HLogi("WHttpServer::StartHttp http server start success: %s", sstream.str().c_str());
     _httpPort = port;
     return true;
 }
 
-bool WHttpServer::startHttps(int port, string certPath, string keyPath, const string &ipStr)
+bool WHttpServer::startHttps(int port, string certPath, string keyPath)
 {
     if (!_threadPool)
     {
@@ -98,16 +99,17 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath, const st
     }
     _certPath = certPath;
     _keyPath = keyPath;
-    std::string listenUrl = formListenUrl("https", ipStr, port);
+    std::stringstream sstream;
+    sstream  << "https://0.0.0.0:" << port;
     _httpsCbMsg.httpServer = this;
     _httpsCbMsg.httpsFlag = true;
-    _httpsServerConn = mg_http_listen(_mgr, listenUrl.c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
+    _httpsServerConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
     if (!_httpsServerConn)
     {
-        HLogw("WHttpServer::StartHttps https server start failed: %s", listenUrl.c_str());
+        HLogw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
         return false;
     }
-    HLogi("WHttpServer::StartHttps https server start success: %s", listenUrl.c_str());
+    HLogi("WHttpServer::StartHttps https server start success: %s", sstream.str().c_str());
     _httpsPort = port;
     return true;
 }
@@ -642,17 +644,26 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
 
     WHttpServerCbMsg *cbMsg = (WHttpServerCbMsg *)cbData;
     int64_t connId = (int64_t)conn->id;
-    if (msgType == MG_EV_ACCEPT && cbMsg->httpsFlag)
+    if (msgType == MG_EV_ACCEPT)
     {
-        struct mg_tls_opts opts;
-        opts.ca = nullptr;
-        opts.cert = _certPath.c_str();
-        opts.certkey = _keyPath.c_str();
-        opts.ciphers = nullptr;
-        opts.srvname.ptr = nullptr;
-        opts.srvname.len = 0;
-        HLogi("WHttpServer::recvHttpRequest https connect come id:%ld", conn->id);
-        mg_tls_init(conn, &opts);
+        // 连接建立起就把释放权收归本封装：置位后mongoose的poll永远不会对它走close_conn，关闭时只回调
+        // 一次MG_EV_CLOSE交给应用收尾。否则"关闭时recv里还有残留请求、协议层在同一个回调里把它派发给
+        // worker"的场景下，mongoose会在回调返回后立刻free，让_clientSelfCloseMap和worker持有的conn
+        // 指针悬垂（UAF/重复释放）。这条连接的收尾见MG_EV_CLOSE分支
+        conn->label[W_EXTERNAL_CLOSE_BIT] = 1;
+
+        if (cbMsg->httpsFlag)
+        {
+            struct mg_tls_opts opts;
+            opts.ca = nullptr;
+            opts.cert = _certPath.c_str();
+            opts.certkey = _keyPath.c_str();
+            opts.ciphers = nullptr;
+            opts.srvname.ptr = nullptr;
+            opts.srvname.len = 0;
+            HLogi("WHttpServer::recvHttpRequest https connect come id:%ld", conn->id);
+            mg_tls_init(conn, &opts);
+        }
     }
     else if (msgType == MG_EV_HTTP_MSG)
     {
@@ -745,6 +756,11 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         HLogi("WHttpServer::RecvHttpRequest http disconnect id:%ld", conn->id);
         if (conn->label[W_VALID_CONNECT_BIT] != 1)
         {
+            // 请求还没被解析连接就关闭了（客户端连上就断、或请求只发了一半）。这条连接从accept起就归
+            // 本封装释放（见MG_EV_ACCEPT置的W_EXTERNAL_CLOSE_BIT），mongoose不会回收它，必须在这里自己
+            // 收尾，否则连接和fd都会漏掉。
+            // 走到这里说明这条连接从没解析过请求，两个map里都不可能有它的条目，无需清理
+            w_close_conn(conn);
             return;
         }
 
@@ -756,6 +772,8 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
                 _currentKeepAliveNum--;
             }
 
+            // 不必erase _clientSelfCloseMap：条目只能由下面push分支（status非NORMAL_CLOSE）产生，而
+            // mongoose对同一条连接只会派发一次MG_EV_CLOSE，两个分支互斥，这里不可能已有条目
             w_close_conn(conn);
             releaseHttpReqMsg(httpReqMsg);
             _workingMsgMap.erase(connId);
@@ -763,11 +781,7 @@ void WHttpServer::recvHttpRequest(mg_connection *conn, int msgType, void *msgDat
         }
 
         conn->label[W_CLIENT_CLOSE_BIT] = 1;
-        _clientSelfCloseList.push_back(conn);
-        if (httpReqMsg->isKeepingAlive) // keep-alive时，若客户端主动断开，则也需要处理_currentKeepAliveNum值
-        {
-            _currentKeepAliveNum--;
-        }
+        _clientSelfCloseMap[connId] = conn;
     }
     else if (msgType == MG_EV_ERROR)
     {
@@ -816,8 +830,8 @@ void WHttpServer::handleHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServerApiD
 
     if (httpMsg->isKeepingAlive)
     {
-        httpMsg->httpConnection->label[W_FD_STATUS_BIT] = HTTP_NOT_USE;
         httpMsg->lastKeepAliveTime = getSysTickCountInMilliseconds();
+        httpMsg->httpConnection->label[W_FD_STATUS_BIT] = HTTP_NOT_USE; // 状态的变化放在最后一句
     }
     else
     {
@@ -847,22 +861,30 @@ void WHttpServer::handleChunkHttpMsg(shared_ptr<HttpReqMsg> &httpMsg, WHttpServe
 
 void WHttpServer::asyncCloseConnPoll()
 {
-    for (auto it = _clientSelfCloseList.begin(); it != _clientSelfCloseList.end();)
+    for (auto it = _clientSelfCloseMap.begin(); it != _clientSelfCloseMap.end();)
     {
-        mg_connection *conn = *it;
+        mg_connection *conn = it->second;
         if (conn->label[W_FD_STATUS_BIT] == HTTP_IN_USE)
         {
             ++it;
+            continue;
         }
-        else
+
+        HLogi("WHttpServer::asyncCloseConnPoll close conn id: %ld", conn->id);
+        // connId 直接取 key：w_close_conn 内部会 memset 整个 conn，之后不能再读 conn->id
+        int64_t connId = it->first;
+        w_close_conn(conn);
+        if (_workingMsgMap.find(connId) != _workingMsgMap.end())
         {
-            HLogi("WHttpServer::asyncCloseConnPoll close conn id: %ld", conn->id);
-            int64_t connId = (int64_t)conn->id;
-            w_close_conn(conn);
+            if (_workingMsgMap[connId]->isKeepingAlive) // keep-alive时，若客户端主动断开，则也需要处理_currentKeepAliveNum值
+            {
+                _currentKeepAliveNum--;
+            }
             releaseHttpReqMsg(_workingMsgMap[connId]);
             _workingMsgMap.erase(connId);
-            it = _clientSelfCloseList.erase(it);
         }
+
+        it = _clientSelfCloseMap.erase(it);
     }
 }
 
@@ -1000,7 +1022,6 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsg(mg_connection *conn, mg_http_me
     shared_ptr<HttpReqMsg> res = shared_ptr<HttpReqMsg>(new HttpReqMsg());
     res->httpConnection = conn;
     conn->label[W_VALID_CONNECT_BIT] = 1;
-    conn->label[W_EXTERNAL_CLOSE_BIT] = 1;
     conn->label[W_FD_STATUS_BIT] = HTTP_IN_USE;
     res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
 
@@ -1067,7 +1088,6 @@ shared_ptr<HttpReqMsg> WHttpServer::parseHttpMsgWhenAbnormal(mg_connection *conn
     shared_ptr<HttpReqMsg> res = shared_ptr<HttpReqMsg>(new HttpReqMsg());
     res->httpConnection = conn;
     conn->label[W_VALID_CONNECT_BIT] = 1;
-    conn->label[W_EXTERNAL_CLOSE_BIT] = 1;
     conn->label[W_FD_STATUS_BIT] = HTTP_IN_USE;
     res->sendQueue = shared_ptr<HttpSendQueue>(new HttpSendQueue());
     return res;
@@ -1370,18 +1390,4 @@ void WHttpServer::timerEventAdapter(void *ptr)
         WHttpNextLoopFun loopFun = std::bind(&WHttpServer::deleteTimerEvent, timerData->httpServer, timerData->timeId);
         timerData->httpServer->addNextLoopFun(loopFun);
     }
-}
-
-string WHttpServer::formListenUrl(const string &scheme, const string &ipStr, int port)
-{
-    std::stringstream sstream;
-    if (ipStr.find(':') != string::npos)
-    {
-        sstream << scheme << "://[" << ipStr << "]:" << port;
-    }
-    else
-    {
-        sstream << scheme << "://" << ipStr << ":" << port;
-    }
-    return sstream.str();
 }
