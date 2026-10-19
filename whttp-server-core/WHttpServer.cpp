@@ -56,7 +56,7 @@ bool WHttpServer::init(int maxEventThreadNum, WThreadPool *threadPool)
     return true;
 }
 
-bool WHttpServer::startHttp(int port)
+bool WHttpServer::startHttp(int port, const string &ipStr)
 {
     if (!_threadPool)
     {
@@ -69,22 +69,21 @@ bool WHttpServer::startHttp(int port)
         HLogw("WHttpServer::StartHttp http server is already start port:%d", _httpPort);
         return false;
     }
-    std::stringstream sstream;
-    sstream  << "http://0.0.0.0:" << port;
+    std::string listenUrl = formListenUrl("http", ipStr, port);
     _httpCbMsg.httpServer = this;
     _httpCbMsg.httpsFlag = false;
-    _httpServerConn= mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
+    _httpServerConn= mg_http_listen(_mgr, listenUrl.c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpCbMsg);
     if (!_httpServerConn)
     {
-        HLogw("WHttpServer::StartHttp http server start failed: %s", sstream.str().c_str());
+        HLogw("WHttpServer::StartHttp http server start failed: %s", listenUrl.c_str());
         return false;
     }
-    HLogi("WHttpServer::StartHttp http server start success: %s", sstream.str().c_str());
+    HLogi("WHttpServer::StartHttp http server start success: %s", listenUrl.c_str());
     _httpPort = port;
     return true;
 }
 
-bool WHttpServer::startHttps(int port, string certPath, string keyPath)
+bool WHttpServer::startHttps(int port, string certPath, string keyPath, const string &ipStr)
 {
     if (!_threadPool)
     {
@@ -99,17 +98,16 @@ bool WHttpServer::startHttps(int port, string certPath, string keyPath)
     }
     _certPath = certPath;
     _keyPath = keyPath;
-    std::stringstream sstream;
-    sstream  << "https://0.0.0.0:" << port;
+    std::string listenUrl = formListenUrl("https", ipStr, port);
     _httpsCbMsg.httpServer = this;
     _httpsCbMsg.httpsFlag = true;
-    _httpsServerConn = mg_http_listen(_mgr, sstream.str().c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
+    _httpsServerConn = mg_http_listen(_mgr, listenUrl.c_str(), WHttpServer::recvHttpRequestCallback, (void *)&_httpsCbMsg);
     if (!_httpsServerConn)
     {
-        HLogw("WHttpServer::StartHttps https server start failed: %s", sstream.str().c_str());
+        HLogw("WHttpServer::StartHttps https server start failed: %s", listenUrl.c_str());
         return false;
     }
-    HLogi("WHttpServer::StartHttps https server start success: %s", sstream.str().c_str());
+    HLogi("WHttpServer::StartHttps https server start success: %s", listenUrl.c_str());
     _httpsPort = port;
     return true;
 }
@@ -1366,6 +1364,21 @@ void WHttpServer::recvHttpRequestCallback(mg_connection *conn, int msgType, void
 {
     WHttpServerCbMsg *cbMsg = (WHttpServerCbMsg *)cbData;
     cbMsg->httpServer->recvHttpRequest(conn, msgType, msgData, cbData);
+}
+
+string WHttpServer::formListenUrl(const string &scheme, const string &ipStr, int port)
+{
+    std::stringstream sstream;
+    // ipv6 地址必须用 [] 包裹，否则 mongoose 解析 listen url 会失败
+    if (ipStr.find(':') != string::npos)
+    {
+        sstream << scheme << "://[" << ipStr << "]:" << port;
+    }
+    else
+    {
+        sstream << scheme << "://" << ipStr << ":" << port;
+    }
+    return sstream.str();
 }
 
 uint64_t WHttpServer::getSysTickCountInMilliseconds()

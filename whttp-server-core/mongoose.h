@@ -20,6 +20,15 @@
 
 #define MG_VERSION "7.3"
 
+// C11 / C++11 通用的线程局部存储：C 用 _Thread_local，C++ 用 thread_local
+#if defined(__cplusplus)
+#define MG_THREAD_LOCAL thread_local
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define MG_THREAD_LOCAL _Thread_local
+#else
+#define MG_THREAD_LOCAL
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -533,7 +542,8 @@ struct mg_timer {
   struct mg_timer *next;    // Linkage in g_timers list
 };
 
-extern struct mg_timer *g_timers;  // Global list of timers
+// 每个事件循环线程只驱动自己的定时器，避免多 mgr 并发遍历同一链表
+extern MG_THREAD_LOCAL struct mg_timer *g_timers;
 
 void mg_timer_init(struct mg_timer *, unsigned long ms, unsigned,
                    void (*fn)(void *), void *);

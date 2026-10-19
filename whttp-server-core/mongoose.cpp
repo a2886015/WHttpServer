@@ -126,6 +126,8 @@ struct dns_data {
   uint16_t txnid;
 };
 
+// 多 mg_mgr 并发下的共享全局：当前仅做服务端监听、不发起客户端 DNS 解析（s_reqs 始终为空），
+// 因此 close_conn 中的 mg_resolve_cancel 不会触及链表。若将来在 shard 上创建出站连接，必须改成 thread_local。
 static struct dns_data *s_reqs;  // Active DNS requests
 
 static void mg_sendnsreq(struct mg_connection *, struct mg_str *, int,
@@ -3664,7 +3666,7 @@ struct mg_str mg_strstrip(struct mg_str s) {
 
 
 
-struct mg_timer *g_timers;
+MG_THREAD_LOCAL struct mg_timer *g_timers;
 
 void mg_timer_init(struct mg_timer *t, unsigned long ms, unsigned flags,
                    void (*fn)(void *), void *arg) {
@@ -3683,7 +3685,7 @@ void mg_timer_free(struct mg_timer *t) {
 void mg_timer_poll(unsigned long now_ms) {
   // If time goes back (wrapped around), reset timers
   struct mg_timer *t, *tmp;
-  static unsigned long oldnow;  // Timestamp in a previous invocation
+  static MG_THREAD_LOCAL unsigned long oldnow;  // Timestamp in a previous invocation
   if (oldnow > now_ms) {        // If it is wrapped, reset timers
     for (t = g_timers; t != NULL; t = t->next) t->expire = 0;
   }
