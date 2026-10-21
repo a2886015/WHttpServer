@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <cctype>
 #include <iomanip>
+#include <sstream>
 
 WHttpServer::WHttpServer(mg_mgr *mgr)
 {
