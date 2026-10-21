@@ -126,9 +126,9 @@ struct dns_data {
   uint16_t txnid;
 };
 
-// 多 mg_mgr 并发下的共享全局：当前仅做服务端监听、不发起客户端 DNS 解析（s_reqs 始终为空），
-// 因此 close_conn 中的 mg_resolve_cancel 不会触及链表。若将来在 shard 上创建出站连接，必须改成 thread_local。
-static struct dns_data *s_reqs;  // Active DNS requests
+// 按线程隔离：所有访问点（mg_sendnsreq/dns_cb/mg_resolve_cancel）都在 poll mgr 的线程上。
+// 前提仍是一个线程只操作自己 poll 的 mgr，且同线程只 poll 一个 mgr
+static MG_THREAD_LOCAL struct dns_data *s_reqs;  // Active DNS requests
 
 static void mg_sendnsreq(struct mg_connection *, struct mg_str *, int,
                          struct mg_dns *, bool);
