@@ -1,5 +1,8 @@
 #include "WHttpServer.h"
 #include <assert.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
 #include <cctype>
 #include <iomanip>
 #include <sstream>
@@ -249,11 +252,18 @@ bool WHttpServer::handleStaticWebDir(shared_ptr<HttpReqMsg> httpMsg, WHttpStatic
 {
     string filePath = webDir.dirPath + urlDecode(httpMsg->uri, false);
 
+    // 先判存在性：真不存在(ENOENT/ENOTDIR)时静默返回，交给下一个静态目录尝试。
+    // 有权限问题的时候，access函数也可能非0值，这时不能静默返回，让下面的fopen将真正的错误打印出来
+    if (access(filePath.c_str(), F_OK) != 0 && (errno == ENOENT || errno == ENOTDIR))
+    {
+        return false;
+    }
+
     FILE *file = fopen(filePath.c_str(), "r");
     if (!file)
     {
-        // Logw("WHttpServer::handleStaticWebDir can not open file:%s", filePath.c_str());
-        // httpReplyJson(httpMsg, 400, "", formJsonBody(101, "can not find this file"));
+        int err = errno;
+        HLoge("WHttpServer::handleStaticWebDir can not open file:%s, errno:%d(%s)", filePath.c_str(), err, strerror(err));
         return false;
     }
 
